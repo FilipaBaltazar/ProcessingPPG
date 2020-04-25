@@ -2,6 +2,9 @@ import 'package:smart_arrays_base/smart_arrays_base.dart';
 import 'package:smart_arrays_numerics/smart_arrays_numerics.dart';
 import 'package:smart_signal_processing/smart_signal_processing.dart';
 import "dart:typed_data";
+import 'package:scidart/numdart.dart';
+import 'package:scidart/scidart.dart';
+
 
 class SensorValue {
   final DateTime time;
@@ -10,17 +13,19 @@ class SensorValue {
   SensorValue(this.time, this.value);
 }
 
-
 class PPG {
   List<double> valuesRaw = [];
+  List<double> _valuesDC = [];
+  List<double> _valuesAC = [];
+  List<SensorValue> _sensorValuesAC = [];
   List<DateTime> times = [];
   int samplingRate;
 
   PPG(this.samplingRate);
 
   void add(time, value) {
-    this.valuesRaw.add(value);
-    this.times.add(time);
+    valuesRaw.add(value);
+    times.add(time);
   }
 
   double get samplingInterval {
@@ -28,7 +33,7 @@ class PPG {
   }
 
   int get windowSize {
-    return (samplingRate*2).round();
+    return (60).round();
   }
 
   int get length {
@@ -36,33 +41,45 @@ class PPG {
   }
 
   List<double> get valuesDC {
-     return movingAverage(valuesRaw, windowSize);
+    completeMovingAverage(_valuesDC, valuesRaw, windowSize);
+    return _valuesDC;
   }
 
   List<double> get valuesAC {
     /* Subtraction of arrays */
-    List<double> negDC = Numerics().dotCM(-1, [valuesDC]).elementAt(0);
-    return Numerics().addVV(valuesRaw.sublist(windowSize), negDC);
+    completeAddVV(_valuesAC, valuesRaw.sublist((windowSize/2).floor(),length-(windowSize/2).ceil()+1),valuesDC, type:'-');
+    return _valuesAC;
   }
 
   List<DateTime> get timesAC {
-    return times.sublist(windowSize);
+    return times.sublist((windowSize/2).floor(),length-(windowSize/2).ceil()+1);
   }
 
   List<SensorValue> get sensorValuesAC {
-    List<SensorValue> result = [];
-    int i = 0;
+    int i = _sensorValuesAC.length;
     while (i < valuesAC.length) {
-      result.add(SensorValue(timesAC.elementAt(i), valuesAC.elementAt(i)));
+      _sensorValuesAC.add(SensorValue(timesAC.elementAt(i), valuesAC.elementAt(i)));
       i++;
     }
-    return result;
+    return _sensorValuesAC;
   }
 
   static void addToMovingAverage(List<double> Y, List<double> X, int N) {
     assert(Y.length == X.length - N);
-    print(X.elementAt(X.length-N-1));
     Y.add( Y.last - X.elementAt(X.length-N-1)/N + X.last/N );
+  }
+
+  static void completeMovingAverage(List<double> Y, List<double> X, int N) {
+    var i = Y.length;
+    if (i == 0) {
+      var sumX = X.sublist(0, N).reduce((value, element) => value + element);
+      Y.add(sumX/N);
+      i++;
+    }
+    while (i < X.length-N+1) {
+      Y.add( Y.elementAt(i-1) - X.elementAt(i-1)/N + X.elementAt(i+N-1)/N );
+      i++;
+    }
   }
 
   static List<double> movingAverage(List<double> X, int N){
@@ -76,5 +93,17 @@ class PPG {
     }
     return Y;
   }
+
+  static void completeAddVV(List<double> Z, List<double> Y, List<double> X, {String type = '+'}){
+    assert(Y.length == X.length);
+    assert(type == '+' || type == '-');
+    int i = Z.length;
+    while (i < Y.length) {
+      Z.add( type == '+' ? Y.elementAt(i)+X.elementAt(i) : Y.elementAt(i)-X.elementAt(i) );
+    }
+  }
+
+
+ //static Array
 
 }
