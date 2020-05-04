@@ -13,6 +13,7 @@ class SensorValue {
   SensorValue(this.time, this.value);
 }
 
+
 class PPG {
   List<double> valuesRaw = [];
   List<double> _valuesDC = [];
@@ -106,4 +107,28 @@ class PPG {
 
  //static Array
 
+}
+
+class BasisFunction {
+  num startTime;
+  num midTime;
+  num finalTime;
+  num midTimeValue;
+
+  BasisFunction(this.startTime, this.midTime, this.finalTime, this.midTimeValue);
+
+  num at(num t) {
+    if (t < startTime) {
+      return 0;
+    }
+    else if (t < midTime) {
+      return midTimeValue * (t-startTime) / (midTime-startTime);
+    }
+    else if (t < finalTime) {
+      return midTimeValue * (finalTime-t) / (finalTime-midTime);
+    }
+    else {
+      return 0;
+    }
+  }
 }
