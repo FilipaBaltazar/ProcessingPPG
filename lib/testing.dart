@@ -26,6 +26,8 @@ class PPG {
   List<BasisFunction> _interpolation = [];
   List<double> _valuesInterp;
   List<double> _durationsInterp;
+  List<double> _valuesFiltered;
+  double _pulseRate;
 
   PPG(this.samplingRate);
 
@@ -97,6 +99,39 @@ class PPG {
     }
   }
 
+  List<double> get valuesFiltered {
+    if (_valuesFiltered == null) {
+      var nyq = 0.5 * samplingRate; // nyquist frequency
+      var fc = Array([0.1, 3]); // cut frequency 1Hz
+      var normal_fc = fc / Array([nyq, nyq]); // frequency normalization for digital filters
+      var numtaps = 30; // attenuation of the filter after cut frequency
+
+      // generation of the filter coefficients
+      var b = firwin(numtaps, normal_fc, pass_zero: false );
+      print('FIR');
+      print(b);
+
+        //-------- Digital filter application -----------//
+      print('digital filter application');
+      // Apply the filter on the signal using lfilter function
+      // lfilter uses direct form II transposed, for FIR filter
+      // the a coefficient is 1.0
+      _valuesFiltered = lfilter(b, Array([1.0]), Array(valuesInterp)).toList();
+    }
+    return _valuesFiltered;
+  }
+
+  double get pulseRate {
+    if (_pulseRate == null) {
+      print('peaks');
+      var pk = findPeaks(valuesFiltered);
+      var indices = pk[0];
+      var timeSpan = durationsInterp.elementAt(indices.last) - durationsInterp.elementAt(indices.first);
+      _pulseRate = (indices.length-1) / timeSpan / 1000 * 60;
+    }
+    return _pulseRate;
+  }
+
   void _buildBasisFunctions() {
     _interpolation.add(
       BasisFunction(
@@ -143,6 +178,7 @@ class PPG {
     }
     return result;
   }
+
 
 
   static void addToMovingAverage(List<double> Y, List<double> X, int N) {
