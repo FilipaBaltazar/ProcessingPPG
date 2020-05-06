@@ -130,8 +130,10 @@ class PPG {
       print('peaks');
       var pk = findPeaks(Array(valuesFiltered));
       var indices = pk[0];
+      print(durationsInterp.last);
+      print(durations.last);
       var timeSpan = durationsInterp.elementAt(indices.last.round()) - durationsInterp.elementAt(indices.first.round());
-      _pulseRate = (indices.length-1) / timeSpan / 1000 * 60;
+      _pulseRate = ((indices.length-1) / (timeSpan / 1000 ))* 60;
     }
     return _pulseRate;
   }
