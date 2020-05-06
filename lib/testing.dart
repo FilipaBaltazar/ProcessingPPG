@@ -20,13 +20,19 @@ class PPG {
   List<double> _valuesAC = [];
   List<SensorValue> _sensorValuesAC = [];
   List<DateTime> times = [];
+  List<int> durations = [];
+  DateTime start;
   int samplingRate;
 
   PPG(this.samplingRate);
 
-  void add(time, value) {
+  void add(DateTime time, double value) {
     valuesRaw.add(value);
     times.add(time);
+    if (times.length == 1) {
+      start = time;
+    }
+    durations.add(time.difference(start).inMilliseconds);
   }
 
   double get samplingInterval {
@@ -106,6 +112,63 @@ class PPG {
 
 
  //static Array
+
+}
+
+class Interpolation {
+  PPG sampledPoints;
+  List<BasisFunction> _interpolation = [];
+
+  Interpolation(this.sampledPoints) {
+    _buildBasisFunctions();
+  }
+
+  void _buildBasisFunctions() {
+    _interpolation.add(
+      BasisFunction(
+        null, 
+        sampledPoints.durations.first, 
+        sampledPoints.durations.elementAt(1),
+        sampledPoints.valuesRaw.first
+      )
+    );
+    for (var i=1; i<sampledPoints.length-1; i++) {
+      _interpolation.add(
+        BasisFunction(
+          sampledPoints.durations.elementAt(i-1), 
+          sampledPoints.durations.elementAt(i), 
+          sampledPoints.durations.elementAt(i+1),
+          sampledPoints.valuesRaw.elementAt(i)
+        )
+      );
+    }
+    _interpolation.add(
+      BasisFunction(
+        sampledPoints.durations.elementAt(sampledPoints.length-2), 
+        sampledPoints.durations.last, 
+        null,
+        sampledPoints.valuesRaw.last
+      )
+    );
+  }
+
+  List<num> interpolate(List<num> times) {
+    assert(times.first >= _interpolation.first.midTime);
+    assert(times.last <= _interpolation.last.finalTime);
+    var interpIndex = 0;
+    var timesIndex = 0;
+    var result = [];
+    while (timesIndex < times.length) {
+      if (times.elementAt(timesIndex) <= _interpolation.elementAt(interpIndex).midTime) {
+        result.add(_interpolation.elementAt(interpIndex).midTimeValue);
+        timesIndex++;
+      }
+      else {
+        interpIndex++;
+      }
+    }
+    return result;
+  }
 
 }
 
