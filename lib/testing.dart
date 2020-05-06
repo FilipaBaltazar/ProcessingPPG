@@ -76,13 +76,17 @@ class PPG {
     return _sensorValuesAC;
   }
 
+  List<BasisFunction> get interpolation {
+    return _interpolation;
+  }
+
   List<double> get durationsInterp {
     if (_durationsInterp!=null) {
       return _durationsInterp;
     }
     else {
       _durationsInterp = List<double>.generate(
-        (durations.last*samplingRate/1000).floor(), 
+        (durations.last*samplingRate/1000).floor()+1, 
         (index) => index * 1/samplingRate*1000);
       return _durationsInterp;
     }
@@ -124,9 +128,9 @@ class PPG {
   double get pulseRate {
     if (_pulseRate == null) {
       print('peaks');
-      var pk = findPeaks(valuesFiltered);
+      var pk = findPeaks(Array(valuesFiltered));
       var indices = pk[0];
-      var timeSpan = durationsInterp.elementAt(indices.last) - durationsInterp.elementAt(indices.first);
+      var timeSpan = durationsInterp.elementAt(indices.last.round()) - durationsInterp.elementAt(indices.first.round());
       _pulseRate = (indices.length-1) / timeSpan / 1000 * 60;
     }
     return _pulseRate;
@@ -161,15 +165,18 @@ class PPG {
     );
   }
 
-  List<num> interpolate(List<num> times) {
+  List<double> interpolate(List<num> times) {
     assert(times.first >= _interpolation.first.midTime);
-    assert(times.last <= _interpolation.last.finalTime);
+    assert(times.last <= _interpolation.last.midTime);
     var interpIndex = 0;
     var timesIndex = 0;
-    var result = [];
+    var result = <double>[];
     while (timesIndex < times.length) {
       if (times.elementAt(timesIndex) <= _interpolation.elementAt(interpIndex).finalTime) {
-        result.add(_interpolation.elementAt(interpIndex).midTimeValue+_interpolation.elementAt(interpIndex+1).midTimeValue);
+        result.add(
+          _interpolation.elementAt(interpIndex).at(times.elementAt(timesIndex))
+          +_interpolation.elementAt(interpIndex+1).at(times.elementAt(timesIndex))
+        );
         timesIndex++;
       }
       else {
@@ -178,8 +185,6 @@ class PPG {
     }
     return result;
   }
-
-
 
   static void addToMovingAverage(List<double> Y, List<double> X, int N) {
     assert(Y.length == X.length - N);
@@ -200,10 +205,10 @@ class PPG {
   }
 
   static List<double> movingAverage(List<double> X, int N){
-    List<double> Y = [];
+    var Y = <double>[];
     var sumX = X.sublist(0, N).reduce((value, element) => value + element);
     Y.add(sumX/N);
-    int i = 1;
+    var i = 1;
     while (i < X.length-N+1) {
       Y.add( Y.elementAt(i-1) - X.elementAt(i-1)/N + X.elementAt(i+N-1)/N );
       i++;
@@ -234,17 +239,26 @@ class BasisFunction {
   BasisFunction(this.startTime, this.midTime, this.finalTime, this.midTimeValue);
 
   num at(num t) {
-    if (t < startTime) {
-      return 0;
+    if (startTime != null && t < startTime) {
+      return 0.0;
     }
     else if (t < midTime) {
       return midTimeValue * (t-startTime) / (midTime-startTime);
     }
-    else if (t < finalTime) {
+    else if (t == midTime) {
+      return midTimeValue;
+    }
+    else if (finalTime != null && t < finalTime) {
       return midTimeValue * (finalTime-t) / (finalTime-midTime);
     }
     else {
-      return 0;
+      return 0.0;
     }
   }
+
+  @override
+  String toString() {
+    return 'Start time:'+startTime.toString()+' Mid time: '+midTime.toString()+' finalTime: '+finalTime.toString()+' Value: '+midTimeValue.toString();
+  }
+
 }
