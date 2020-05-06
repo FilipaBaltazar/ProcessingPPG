@@ -23,6 +23,9 @@ class PPG {
   List<int> durations = [];
   DateTime start;
   int samplingRate;
+  List<BasisFunction> _interpolation = [];
+  List<double> _valuesInterp;
+  List<double> _durationsInterp;
 
   PPG(this.samplingRate);
 
@@ -71,6 +74,77 @@ class PPG {
     return _sensorValuesAC;
   }
 
+  List<double> get durationsInterp {
+    if (_durationsInterp!=null) {
+      return _durationsInterp;
+    }
+    else {
+      _durationsInterp = List<double>.generate(
+        (durations.last*samplingRate/1000).floor(), 
+        (index) => index * 1/samplingRate*1000);
+      return _durationsInterp;
+    }
+  }
+
+  List<double> get valuesInterp {
+    if (_valuesInterp!=null){
+      return _valuesInterp;
+    }
+    else{
+      _buildBasisFunctions();
+      _valuesInterp = interpolate(durationsInterp);
+      return _valuesInterp;
+    }
+  }
+
+  void _buildBasisFunctions() {
+    _interpolation.add(
+      BasisFunction(
+        null, 
+        durations.first, 
+        durations.elementAt(1),
+        valuesRaw.first
+      )
+    );
+    for (var i=1; i<length-1; i++) {
+      _interpolation.add(
+        BasisFunction(
+          durations.elementAt(i-1), 
+          durations.elementAt(i), 
+          durations.elementAt(i+1),
+          valuesRaw.elementAt(i)
+        )
+      );
+    }
+    _interpolation.add(
+      BasisFunction(
+        durations.elementAt(length-2), 
+        durations.last, 
+        null,
+        valuesRaw.last
+      )
+    );
+  }
+
+  List<num> interpolate(List<num> times) {
+    assert(times.first >= _interpolation.first.midTime);
+    assert(times.last <= _interpolation.last.finalTime);
+    var interpIndex = 0;
+    var timesIndex = 0;
+    var result = [];
+    while (timesIndex < times.length) {
+      if (times.elementAt(timesIndex) <= _interpolation.elementAt(interpIndex).finalTime) {
+        result.add(_interpolation.elementAt(interpIndex).midTimeValue+_interpolation.elementAt(interpIndex+1).midTimeValue);
+        timesIndex++;
+      }
+      else {
+        interpIndex++;
+      }
+    }
+    return result;
+  }
+
+
   static void addToMovingAverage(List<double> Y, List<double> X, int N) {
     assert(Y.length == X.length - N);
     Y.add( Y.last - X.elementAt(X.length-N-1)/N + X.last/N );
@@ -112,63 +186,6 @@ class PPG {
 
 
  //static Array
-
-}
-
-class Interpolation {
-  PPG sampledPoints;
-  List<BasisFunction> _interpolation = [];
-
-  Interpolation(this.sampledPoints) {
-    _buildBasisFunctions();
-  }
-
-  void _buildBasisFunctions() {
-    _interpolation.add(
-      BasisFunction(
-        null, 
-        sampledPoints.durations.first, 
-        sampledPoints.durations.elementAt(1),
-        sampledPoints.valuesRaw.first
-      )
-    );
-    for (var i=1; i<sampledPoints.length-1; i++) {
-      _interpolation.add(
-        BasisFunction(
-          sampledPoints.durations.elementAt(i-1), 
-          sampledPoints.durations.elementAt(i), 
-          sampledPoints.durations.elementAt(i+1),
-          sampledPoints.valuesRaw.elementAt(i)
-        )
-      );
-    }
-    _interpolation.add(
-      BasisFunction(
-        sampledPoints.durations.elementAt(sampledPoints.length-2), 
-        sampledPoints.durations.last, 
-        null,
-        sampledPoints.valuesRaw.last
-      )
-    );
-  }
-
-  List<num> interpolate(List<num> times) {
-    assert(times.first >= _interpolation.first.midTime);
-    assert(times.last <= _interpolation.last.finalTime);
-    var interpIndex = 0;
-    var timesIndex = 0;
-    var result = [];
-    while (timesIndex < times.length) {
-      if (times.elementAt(timesIndex) <= _interpolation.elementAt(interpIndex).midTime) {
-        result.add(_interpolation.elementAt(interpIndex).midTimeValue);
-        timesIndex++;
-      }
-      else {
-        interpIndex++;
-      }
-    }
-    return result;
-  }
 
 }
 
