@@ -39,7 +39,7 @@ void main(List<String> arguments) {
   
     ppg.add(last, pipa_heart.elementAt(i));  
 
-    print(last.difference(start).inMilliseconds);  
+    // print(last.difference(start).inMilliseconds);  
   }
 
   print(ppg.pulseRate);

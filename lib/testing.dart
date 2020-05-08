@@ -13,21 +13,61 @@ class SensorValue {
   SensorValue(this.time, this.value);
 }
 
+class Oximetry {
+  PPG red;
+  PPG green;
+  PPG blue;
+  double eRed;
+  double eGreen;
+  double eBlue;
+
+  Oximetry(this.red, this.blue, [this.green]);
+
+  static List<Array> getSignalParams(PPG signal) {
+    var peak2peaks = Array.empty();
+    var slopes = Array.empty();
+    for (var i=1; i<signal.peaks[0].length; i++) {
+      // index of the prev positive peak
+      var indHighPrev = signal.peaks[0][i-1];
+      // index of positive peak
+      var indHigh = signal.peaks[0][i];
+      // index of negative peak
+      var indLow = signal.negativePeaks[0].indexWhere((var element) => indHighPrev < element && element < indHigh);
+      if (indLow != -1) {
+        // timepoint of positive peak
+        var timeHigh = signal.durationsInterp[indHigh];
+        // timepoint of negative peak
+        var timeLow = signal.durationsInterp[indLow];
+        // value of positive peak
+        var valueHigh = signal.valuesLog[indHigh];
+        // value of negative peak
+        var valueLow = signal.valuesLog[indLow];
+        var peak2peak = valueHigh - valueLow;
+        var slope = peak2peak / (timeHigh - timeLow);
+        peak2peaks.add(peak2peak);
+        slopes.add(slope);
+      }
+    }
+    return [slopes,peak2peaks];
+  }
+}
 
 class PPG {
-  List<double> valuesRaw = [];
-  List<double> _valuesDC = [];
-  List<double> _valuesAC = [];
+  Array valuesRaw = Array.empty();
+  Array _valuesDC = Array.empty();
+  Array _valuesAC = Array.empty();
   List<SensorValue> _sensorValuesAC = [];
   List<DateTime> times = [];
-  List<int> durations = [];
+  Array durations = Array.empty();
   DateTime start;
   int samplingRate;
   List<BasisFunction> _interpolation = [];
-  List<double> _valuesInterp;
-  List<double> _durationsInterp;
-  List<double> _valuesFiltered;
+  Array _valuesInterp;
+  Array _durationsInterp;
+  Array _valuesLog;
   double _pulseRate;
+  List<dynamic> _peaks;
+  List<dynamic> _negativePeaks;
 
   PPG(this.samplingRate);
 
@@ -37,7 +77,7 @@ class PPG {
     if (times.length == 1) {
       start = time;
     }
-    durations.add(time.difference(start).inMilliseconds);
+    durations.add(time.difference(start).inMilliseconds.toDouble());
   }
 
   double get samplingInterval {
@@ -52,12 +92,12 @@ class PPG {
     return valuesRaw.length;
   }
 
-  List<double> get valuesDC {
+  Array get valuesDC {
     completeMovingAverage(_valuesDC, valuesRaw, windowSize);
     return _valuesDC;
   }
 
-  List<double> get valuesAC {
+  Array get valuesAC {
     /* Subtraction of arrays */
     completeAddVV(_valuesAC, valuesRaw.sublist((windowSize/2).floor(),length-(windowSize/2).ceil()+1),valuesDC, type:'-');
     return _valuesAC;
@@ -80,19 +120,19 @@ class PPG {
     return _interpolation;
   }
 
-  List<double> get durationsInterp {
+  Array get durationsInterp {
     if (_durationsInterp!=null) {
       return _durationsInterp;
     }
     else {
-      _durationsInterp = List<double>.generate(
+      _durationsInterp = Array(List<double>.generate(
         (durations.last*samplingRate/1000).floor()+1, 
-        (index) => index * 1/samplingRate*1000);
+        (index) => index * 1/samplingRate*1000));
       return _durationsInterp;
     }
   }
 
-  List<double> get valuesInterp {
+  Array get valuesInterp {
     if (_valuesInterp!=null){
       return _valuesInterp;
     }
@@ -103,8 +143,8 @@ class PPG {
     }
   }
 
-  List<double> get valuesFiltered {
-    if (_valuesFiltered == null) {
+  Array get valuesLog {
+    if (_valuesLog == null) {
       var nyq = 0.5 * samplingRate; // nyquist frequency
       var fc = Array([0.1, 3]); // cut frequency 1Hz
       var normal_fc = fc / Array([nyq, nyq]); // frequency normalization for digital filters
@@ -120,19 +160,30 @@ class PPG {
       // Apply the filter on the signal using lfilter function
       // lfilter uses direct form II transposed, for FIR filter
       // the a coefficient is 1.0
-      _valuesFiltered = lfilter(b, Array([1.0]), Array(valuesInterp)).toList();
+      _valuesLog = lfilter(b, Array([1.0]), valuesInterp);
     }
-    return _valuesFiltered;
+    return _valuesLog;
+  }
+
+  List<dynamic> get peaks {
+    _peaks ??= findPeaks(valuesLog);
+    return _peaks;
+  }
+
+  List<dynamic> get negativePeaks {
+    _negativePeaks ??= findPeaks(Array.fixed(valuesLog.length)-valuesLog);
+    return _negativePeaks;
   }
 
   double get pulseRate {
     if (_pulseRate == null) {
       print('peaks');
-      var pk = findPeaks(Array(valuesFiltered));
-      var indices = pk[0];
-      print(durationsInterp.last);
-      print(durations.last);
-      var timeSpan = durationsInterp.elementAt(indices.last.round()) - durationsInterp.elementAt(indices.first.round());
+      var indices = peaks[0];
+      print('Filtered values');
+      print(valuesLog);
+      // print(durationsInterp.last);
+      // print(durations.last);
+      var timeSpan = durationsInterp[(indices.last.round())] - durationsInterp[(indices.first.round())];
       _pulseRate = ((indices.length-1) / (timeSpan / 1000 ))* 60;
     }
     return _pulseRate;
@@ -167,17 +218,17 @@ class PPG {
     );
   }
 
-  List<double> interpolate(List<num> times) {
+  Array interpolate(Array times) {
     assert(times.first >= _interpolation.first.midTime);
     assert(times.last <= _interpolation.last.midTime);
     var interpIndex = 0;
     var timesIndex = 0;
-    var result = <double>[];
+    var result = Array.empty();
     while (timesIndex < times.length) {
-      if (times.elementAt(timesIndex) <= _interpolation.elementAt(interpIndex).finalTime) {
+      if (times[timesIndex] <= _interpolation.elementAt(interpIndex).finalTime) {
         result.add(
-          _interpolation.elementAt(interpIndex).at(times.elementAt(timesIndex))
-          +_interpolation.elementAt(interpIndex+1).at(times.elementAt(timesIndex))
+          _interpolation.elementAt(interpIndex).at(times[timesIndex])
+          +_interpolation.elementAt(interpIndex+1).at(times[timesIndex])
         );
         timesIndex++;
       }
@@ -188,12 +239,12 @@ class PPG {
     return result;
   }
 
-  static void addToMovingAverage(List<double> Y, List<double> X, int N) {
+  static void addToMovingAverage(Array Y, Array X, int N) {
     assert(Y.length == X.length - N);
     Y.add( Y.last - X.elementAt(X.length-N-1)/N + X.last/N );
   }
 
-  static void completeMovingAverage(List<double> Y, List<double> X, int N) {
+  static void completeMovingAverage(Array Y, Array X, int N) {
     var i = Y.length;
     if (i == 0) {
       var sumX = X.sublist(0, N).reduce((value, element) => value + element);
@@ -206,7 +257,7 @@ class PPG {
     }
   }
 
-  static List<double> movingAverage(List<double> X, int N){
+  static Array movingAverage(Array X, int N){
     var Y = <double>[];
     var sumX = X.sublist(0, N).reduce((value, element) => value + element);
     Y.add(sumX/N);
@@ -218,7 +269,7 @@ class PPG {
     return Y;
   }
 
-  static void completeAddVV(List<double> Z, List<double> Y, List<double> X, {String type = '+'}){
+  static void completeAddVV(Array Z, Array Y, Array X, {String type = '+'}){
     assert(Y.length == X.length);
     assert(type == '+' || type == '-');
     int i = Z.length;
