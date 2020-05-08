@@ -14,14 +14,14 @@ class SensorValue {
 }
 
 class Oximetry {
-  PPG red;
-  PPG green;
-  PPG blue;
+  PPG signalRed;
+  PPG signalGreen;
+  PPG signalBlue;
   // wavelengths in nm
-  double lambdaRed = 640;
-  double lambdaGreen = 520;
-  double lambdaBlue = 450;
-  // coefficients of extinction in L / millimole / cm
+  int lambdaRed = 640;
+  int lambdaGreen = 520;
+  int lambdaBlue = 450;
+  // coefficients of extinction in L / mmol / cm
   double eHbOxyRed = 0.442;
   double eHbOxyGreen = 2.42024;
   double eHbOxyBlue = 6.2816;
@@ -29,9 +29,23 @@ class Oximetry {
   double eHbGreen = 3.1589;
   double eHbBlue = 10.3292;
 
-  Oximetry(this.red, this.blue, [this.green]);
+  Oximetry(this.signalRed, this.signalBlue, [this.signalGreen]);
 
-  static List<Array> getSignalParams(PPG signal) {
+  /// Returns the SpO2 value of [this].
+  double get value {
+    var paramsRed = signalParams(signalRed);
+    var slopeRed = mean(paramsRed[0]);
+    var peakRed = mean(paramsRed[1]);
+    var paramsBlue = signalParams(signalBlue);
+    var slopeBlue = mean(paramsBlue[0]);
+    var peakBlue = mean(paramsBlue[1]);
+    return 100
+     * ( eHbRed*sqrt(slopeBlue*peakBlue) - eHbBlue*sqrt(slopeRed*peakRed) )
+     / ( sqrt(slopeBlue*peakBlue)*(eHbRed - eHbOxyRed) - sqrt(slopeRed*peakRed)*(eHbBlue - eHbOxyBlue) );
+  }
+
+  /// Returns the list of slopes and peak to peak values of [signal], in that order.
+  static List<Array> signalParams(PPG signal) {
     var peak2peaks = Array.empty();
     var slopes = Array.empty();
     for (var i=1; i<signal.peaks[0].length; i++) {
@@ -168,7 +182,7 @@ class PPG {
       // Apply the filter on the signal using lfilter function
       // lfilter uses direct form II transposed, for FIR filter
       // the a coefficient is 1.0
-      _valuesLog = lfilter(b, Array([1.0]), valuesInterp);
+      _valuesLog = arrayLog(lfilter(b, Array([1.0]), valuesInterp));
     }
     return _valuesLog;
   }
