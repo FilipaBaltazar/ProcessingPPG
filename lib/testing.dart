@@ -17,9 +17,17 @@ class Oximetry {
   PPG red;
   PPG green;
   PPG blue;
-  double eRed;
-  double eGreen;
-  double eBlue;
+  // wavelengths in nm
+  double lambdaRed = 640;
+  double lambdaGreen = 520;
+  double lambdaBlue = 450;
+  // coefficients of extinction in L / millimole / cm
+  double eHbOxyRed = 0.442;
+  double eHbOxyGreen = 2.42024;
+  double eHbOxyBlue = 6.2816;
+  double eHbRed = 4.3542;
+  double eHbGreen = 3.1589;
+  double eHbBlue = 10.3292;
 
   Oximetry(this.red, this.blue, [this.green]);
 
