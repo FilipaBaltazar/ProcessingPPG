@@ -5,7 +5,6 @@ import "dart:typed_data";
 import 'package:scidart/numdart.dart';
 import 'package:scidart/scidart.dart';
 
-
 class SensorValue {
   final DateTime time;
   final double value;
@@ -14,52 +13,74 @@ class SensorValue {
 }
 
 class Oximetry {
-  PPG signalRed;
-  PPG signalGreen;
-  PPG signalBlue;
-  // wavelengths in nm
-  int lambdaRed = 640;
-  int lambdaGreen = 520;
-  int lambdaBlue = 450;
-  // coefficients of extinction in L / mmol / cm
-  double eHbOxyRed = 0.442;
-  double eHbOxyGreen = 2.42024;
-  double eHbOxyBlue = 6.2816;
-  double eHbRed = 4.3542;
-  double eHbGreen = 3.1589;
-  double eHbBlue = 10.3292;
+  /// Wavelength assumed for the red channel, in nm.
+  static int lambdaRed = 640;
 
-  Oximetry(this.signalRed, this.signalBlue, [this.signalGreen]);
+  /// Wavelength assumed for the green channel, in nm.
+  static int lambdaGreen = 520;
 
-  /// Returns the SpO2 value of [this].
-  double get value {
+  /// Wavelength assumed for the blue channel, in nm.
+  static int lambdaBlue = 450;
+
+  /// Extinction coefficient of HbO at the red wavelength, in L / mmol / cm.
+  static double eHbOxyRed = 0.442;
+
+  /// Extinction coefficient of HbO at the green wavelength, in L / mmol / cm.
+  static double eHbOxyGreen = 2.42024;
+
+  /// Extinction coefficient of HbO at the blue wavelength, in L / mmol / cm.
+  static double eHbOxyBlue = 6.2816;
+
+  /// Extinction coefficient of Hb at the red wavelength, in L / mmol / cm.
+  static double eHbRed = 4.3542;
+
+  /// Extinction coefficient of Hb at the green wavelength, in L / mmol / cm.
+  static double eHbGreen = 3.1589;
+
+  /// Extinction coefficient of Hb at the blue wavelength, in L / mmol / cm.
+  static double eHbBlue = 10.3292;
+
+  /// Returns the SpO2 value of calculated from the [PPG] signals `signalRed` and `signalBlue`.
+  ///
+  /// The value is calculated using the method described by Reddy et al. (2009).
+  static double value(PPG signalRed, PPG signalBlue) {
     var paramsRed = signalParams(signalRed);
     var slopeRed = mean(paramsRed[0]);
     var peakRed = mean(paramsRed[1]);
     var paramsBlue = signalParams(signalBlue);
     var slopeBlue = mean(paramsBlue[0]);
     var peakBlue = mean(paramsBlue[1]);
-    return 100
-     * ( eHbRed*sqrt(slopeBlue*peakBlue) - eHbBlue*sqrt(slopeRed*peakRed) )
-     / ( sqrt(slopeBlue*peakBlue)*(eHbRed - eHbOxyRed) - sqrt(slopeRed*peakRed)*(eHbBlue - eHbOxyBlue) );
+    return 100 *
+        (eHbRed * sqrt(slopeBlue * peakBlue) -
+            eHbBlue * sqrt(slopeRed * peakRed)) /
+        (sqrt(slopeBlue * peakBlue) * (eHbRed - eHbOxyRed) -
+            sqrt(slopeRed * peakRed) * (eHbBlue - eHbOxyBlue));
   }
 
-  /// Returns the list of slopes and peak to peak values of [signal], in that order.
+  /// Returns the list of slopes and peak-to-peak values of `signal`, in that order.
+  /// 
+  /// For each pair of consecutive positive peaks, 
+  /// the function checks whether there is a negative peak between them.
+  /// If there is, then the slope and peak-to-peak value are calculated
+  /// and added to their respective lists.
+  /// In the case that there is more than one negative peak, the one with lowest index is considered.
+  /// The function terminates when all positive peaks have been checked.
   static List<Array> signalParams(PPG signal) {
     var peak2peaks = Array.empty();
     var slopes = Array.empty();
-    for (var i=1; i<signal.peaks[0].length; i++) {
+    for (var i = 1; i < signal.peaks[0].length; i++) {
       // index of the prev positive peak
-      var indHighPrev = signal.peaks[0][i-1];
+      var indHighPrev = signal.peaks[0][i - 1];
       // index of positive peak
       var indHigh = signal.peaks[0][i];
       // index of negative peak
-      var indLow = signal.negativePeaks[0].indexWhere((var element) => indHighPrev < element && element < indHigh);
+      var indLow = signal.negativePeaks[0].indexWhere(
+          (var element) => indHighPrev < element && element < indHigh);
       if (indLow != -1) {
         // timepoint of positive peak
-        var timeHigh = signal.durationsInterp[indHigh];
+        var timeHigh = signal.millisInterp[indHigh];
         // timepoint of negative peak
-        var timeLow = signal.durationsInterp[indLow];
+        var timeLow = signal.millisInterp[indLow];
         // value of positive peak
         var valueHigh = signal.valuesLog[indHigh];
         // value of negative peak
@@ -70,36 +91,55 @@ class Oximetry {
         slopes.add(slope);
       }
     }
-    return [slopes,peak2peaks];
+    return [slopes, peak2peaks];
   }
 }
 
 class PPG {
+  /// Raw values of each data point in the PPG signal.
   Array valuesRaw = Array.empty();
+
   Array _valuesDC = Array.empty();
   Array _valuesAC = Array.empty();
   List<SensorValue> _sensorValuesAC = [];
-  List<DateTime> times = [];
-  Array durations = Array.empty();
+
+  /// [DateTime] values of each data point in the PPG signal.
+  List<DateTime> dates = [];
+
+  /// First value in [dates].
   DateTime start;
+
+  /// Timespan since [start] of each data point in the PPG signal, in milliseconds.
+  Array millis = Array.empty();
+
+  /// Sampling rate used to interpolate the PPG signal.
   int samplingRate;
-  List<BasisFunction> _interpolation = [];
+
+  final List<BasisFunction> _interpolation = [];
   Array _valuesInterp;
-  Array _durationsInterp;
+  Array _millisInterp;
   Array _valuesLog;
   double _pulseRate;
   List<dynamic> _peaks;
   List<dynamic> _negativePeaks;
 
+  /// High frequency cut-off of the band-pass filter applied to
+  /// [valuesInterp] before obtaining [valuesLog].
+  double frequencyHigh = 3;
+
+  /// Low frequency cut-off of the band-pass filter applied to
+  /// [valuesInterp] before obtaining [valuesLog].
+  double frequencyLow = 0.1;
+
   PPG(this.samplingRate);
 
   void add(DateTime time, double value) {
     valuesRaw.add(value);
-    times.add(time);
-    if (times.length == 1) {
+    dates.add(time);
+    if (dates.length == 1) {
       start = time;
     }
-    durations.add(time.difference(start).inMilliseconds.toDouble());
+    millis.add(time.difference(start).inMilliseconds.toDouble());
   }
 
   double get samplingInterval {
@@ -110,6 +150,7 @@ class PPG {
     return (60).round();
   }
 
+  /// Length of [valuesRaw].
   int get length {
     return valuesRaw.length;
   }
@@ -121,141 +162,152 @@ class PPG {
 
   Array get valuesAC {
     /* Subtraction of arrays */
-    completeAddVV(_valuesAC, valuesRaw.sublist((windowSize/2).floor(),length-(windowSize/2).ceil()+1),valuesDC, type:'-');
+    completeAddVV(
+        _valuesAC,
+        valuesRaw.sublist(
+            (windowSize / 2).floor(), length - (windowSize / 2).ceil() + 1),
+        valuesDC,
+        type: '-');
     return _valuesAC;
   }
 
   List<DateTime> get timesAC {
-    return times.sublist((windowSize/2).floor(),length-(windowSize/2).ceil()+1);
+    return dates.sublist(
+        (windowSize / 2).floor(), length - (windowSize / 2).ceil() + 1);
   }
 
   List<SensorValue> get sensorValuesAC {
-    int i = _sensorValuesAC.length;
+    var i = _sensorValuesAC.length;
     while (i < valuesAC.length) {
-      _sensorValuesAC.add(SensorValue(timesAC.elementAt(i), valuesAC.elementAt(i)));
+      _sensorValuesAC
+          .add(SensorValue(timesAC.elementAt(i), valuesAC.elementAt(i)));
       i++;
     }
     return _sensorValuesAC;
   }
 
+  /// Returns the list of linear basis functions used to interpolate [valuesRaw].
   List<BasisFunction> get interpolation {
+    if (valuesRaw.length > 2 && _interpolation.length < valuesRaw.length) {
+      _completeBasisFunctions();
+    }
     return _interpolation;
   }
 
-  Array get durationsInterp {
-    if (_durationsInterp!=null) {
-      return _durationsInterp;
+  /// Returns the timespan since [start] of each data point in [valuesInterp], in milliseconds.
+  Array get millisInterp {
+    if (_millisInterp == null) {
+      _millisInterp = Array(List<double>.generate(
+          (millis.last * samplingRate / 1000).floor() + 1,
+          (index) => index * 1 / samplingRate * 1000));
     }
-    else {
-      _durationsInterp = Array(List<double>.generate(
-        (durations.last*samplingRate/1000).floor()+1, 
-        (index) => index * 1/samplingRate*1000));
-      return _durationsInterp;
-    }
+    return _millisInterp;
   }
 
+  /// Returns the interpolated values obtained from [valuesRaw] at a sampling rate of [samplingRate].
   Array get valuesInterp {
-    if (_valuesInterp!=null){
-      return _valuesInterp;
+    if (_valuesInterp == null) {
+      _valuesInterp = interpolate(millisInterp);
     }
-    else{
-      _buildBasisFunctions();
-      _valuesInterp = interpolate(durationsInterp);
-      return _valuesInterp;
-    }
+    return _valuesInterp;
   }
 
+  /// Returns the logarithm of [valuesInterp], applied after filtering.
   Array get valuesLog {
     if (_valuesLog == null) {
-      var nyq = 0.5 * samplingRate; // nyquist frequency
-      var fc = Array([0.1, 3]); // cut frequency 1Hz
-      var normal_fc = fc / Array([nyq, nyq]); // frequency normalization for digital filters
-      var numtaps = 30; // attenuation of the filter after cut frequency
-
-      // generation of the filter coefficients
-      var b = firwin(numtaps, normal_fc, pass_zero: false );
-      print('FIR');
-      print(b);
-
-        //-------- Digital filter application -----------//
-      print('digital filter application');
-      // Apply the filter on the signal using lfilter function
-      // lfilter uses direct form II transposed, for FIR filter
-      // the a coefficient is 1.0
-      _valuesLog = arrayLog(lfilter(b, Array([1.0]), valuesInterp));
+      var frequencyNyquist = 0.5 * samplingRate;
+      var bandPassWindow = Array([frequencyLow, frequencyHigh]);
+      var normalBandPassWindow =
+          bandPassWindow / Array([frequencyNyquist, frequencyNyquist]);
+      var filterOrder = 30;
+      var filterCoeffs =
+          firwin(filterOrder, normalBandPassWindow, pass_zero: false);
+      _valuesLog = arrayLog(lfilter(filterCoeffs, Array([1.0]), valuesInterp));
     }
     return _valuesLog;
   }
 
+  /// Returns the indices and the values of the positive peaks of [valuesLog],
+  /// in that order.
+  /// 
+  /// A value is considered a positive peak if both 
+  /// the previous and next value are smaller or equal to it.
   List<dynamic> get peaks {
-    _peaks ??= findPeaks(valuesLog);
+    if (_peaks == null) {
+      _peaks = findPeaks(valuesLog);
+      peaks[0] = _peaks[0].map((i) => i.round()).toList();
+    }
     return _peaks;
   }
 
+  /// Returns the indices and the values of the negative peaks of [valuesLog],
+  /// in that order.
+  /// 
+  /// A value is considered a negative peak if both 
+  /// the previous and next value are greater or equal to it.
   List<dynamic> get negativePeaks {
-    _negativePeaks ??= findPeaks(Array.fixed(valuesLog.length)-valuesLog);
+    _negativePeaks ??= findPeaks(Array.fixed(valuesLog.length) - valuesLog);
     return _negativePeaks;
   }
 
+  /// Returns the pulse rate calculated from [valuesLog].
   double get pulseRate {
     if (_pulseRate == null) {
-      print('peaks');
+      // print('peaks');
       var indices = peaks[0];
-      print('Filtered values');
-      print(valuesLog);
+      // print('Filtered values');
+      // print(valuesLog);
       // print(durationsInterp.last);
       // print(durations.last);
-      var timeSpan = durationsInterp[(indices.last.round())] - durationsInterp[(indices.first.round())];
-      _pulseRate = ((indices.length-1) / (timeSpan / 1000 ))* 60;
+      var timeSpan = millisInterp[(indices.last.round())] -
+          millisInterp[(indices.first.round())];
+      _pulseRate = ((indices.length - 1) / (timeSpan / 1000)) * 60;
     }
     return _pulseRate;
   }
 
-  void _buildBasisFunctions() {
-    _interpolation.add(
-      BasisFunction(
-        null, 
-        durations.first, 
-        durations.elementAt(1),
-        valuesRaw.first
-      )
-    );
-    for (var i=1; i<length-1; i++) {
-      _interpolation.add(
-        BasisFunction(
-          durations.elementAt(i-1), 
-          durations.elementAt(i), 
-          durations.elementAt(i+1),
-          valuesRaw.elementAt(i)
-        )
-      );
+  /// Fills in [_interpolation] with [BasisFunction] objects until its length equals that of [valuesRaw].
+  /// 
+  /// This is only performed if the [valuesRaw] has more than two elements, since a basis fucntion
+  /// on its own is useless.
+  void _completeBasisFunctions() {
+    if (valuesRaw.length < 3) {
+      return;
     }
-    _interpolation.add(
-      BasisFunction(
-        durations.elementAt(length-2), 
-        durations.last, 
-        null,
-        valuesRaw.last
-      )
-    );
+    if (_interpolation.isEmpty) {
+      _interpolation.add(BasisFunction(
+          null, millis[0], millis[1], valuesRaw[0]));
+      _interpolation.add(BasisFunction(
+        millis[0], millis[1], null, valuesRaw[1]));
+    }
+    if (_interpolation.length < length) {
+      _interpolation.removeLast();
+      for (var i = interpolation.length; i < length - 1; i++) {
+        _interpolation.add(BasisFunction(
+            millis[i - 1],
+            millis[i],
+            millis[i + 1],
+            valuesRaw[i]));
+      }
+      _interpolation.add(BasisFunction(
+          millis[length - 2], millis.last, null, valuesRaw.last)); 
+    }
   }
 
   Array interpolate(Array times) {
-    assert(times.first >= _interpolation.first.midTime);
-    assert(times.last <= _interpolation.last.midTime);
-    var interpIndex = 0;
-    var timesIndex = 0;
     var result = Array.empty();
-    while (timesIndex < times.length) {
-      if (times[timesIndex] <= _interpolation.elementAt(interpIndex).finalTime) {
-        result.add(
-          _interpolation.elementAt(interpIndex).at(times[timesIndex])
-          +_interpolation.elementAt(interpIndex+1).at(times[timesIndex])
-        );
-        timesIndex++;
-      }
-      else {
-        interpIndex++;
+    if (interpolation.isEmpty) return result;
+    assert(times.first >= interpolation.first.midTime);
+    assert(times.last <= interpolation.last.midTime);
+    var indexInterp = 0;
+    var indexTime = 0;
+    while (indexTime < times.length) {
+      if (times[indexTime] <= interpolation[indexInterp].finalTime) {
+        result.add(interpolation[indexInterp].at(times[indexTime]) +
+            interpolation[indexInterp + 1].at(times[indexTime]));
+        indexTime++;
+      } else {
+        indexInterp++;
       }
     }
     return result;
@@ -263,45 +315,50 @@ class PPG {
 
   static void addToMovingAverage(Array Y, Array X, int N) {
     assert(Y.length == X.length - N);
-    Y.add( Y.last - X.elementAt(X.length-N-1)/N + X.last/N );
+    Y.add(Y.last - X.elementAt(X.length - N - 1) / N + X.last / N);
   }
 
   static void completeMovingAverage(Array Y, Array X, int N) {
     var i = Y.length;
     if (i == 0) {
       var sumX = X.sublist(0, N).reduce((value, element) => value + element);
-      Y.add(sumX/N);
+      Y.add(sumX / N);
       i++;
     }
-    while (i < X.length-N+1) {
-      Y.add( Y.elementAt(i-1) - X.elementAt(i-1)/N + X.elementAt(i+N-1)/N );
+    while (i < X.length - N + 1) {
+      Y.add(Y.elementAt(i - 1) -
+          X.elementAt(i - 1) / N +
+          X.elementAt(i + N - 1) / N);
       i++;
     }
   }
 
-  static Array movingAverage(Array X, int N){
+  static Array movingAverage(Array X, int N) {
     var Y = <double>[];
     var sumX = X.sublist(0, N).reduce((value, element) => value + element);
-    Y.add(sumX/N);
+    Y.add(sumX / N);
     var i = 1;
-    while (i < X.length-N+1) {
-      Y.add( Y.elementAt(i-1) - X.elementAt(i-1)/N + X.elementAt(i+N-1)/N );
+    while (i < X.length - N + 1) {
+      Y.add(Y.elementAt(i - 1) -
+          X.elementAt(i - 1) / N +
+          X.elementAt(i + N - 1) / N);
       i++;
     }
     return Y;
   }
 
-  static void completeAddVV(Array Z, Array Y, Array X, {String type = '+'}){
+  static void completeAddVV(Array Z, Array Y, Array X, {String type = '+'}) {
     assert(Y.length == X.length);
     assert(type == '+' || type == '-');
     int i = Z.length;
     while (i < Y.length) {
-      Z.add( type == '+' ? Y.elementAt(i)+X.elementAt(i) : Y.elementAt(i)-X.elementAt(i) );
+      Z.add(type == '+'
+          ? Y.elementAt(i) + X.elementAt(i)
+          : Y.elementAt(i) - X.elementAt(i));
     }
   }
 
-
- //static Array
+  //static Array
 
 }
 
@@ -311,29 +368,36 @@ class BasisFunction {
   num finalTime;
   num midTimeValue;
 
-  BasisFunction(this.startTime, this.midTime, this.finalTime, this.midTimeValue);
+  BasisFunction(
+      this.startTime, this.midTime, this.finalTime, this.midTimeValue);
 
+  /// Returns the value of the interpolation at time point `t`.
   num at(num t) {
     if (startTime != null && t < startTime) {
       return 0.0;
-    }
-    else if (t < midTime) {
-      return midTimeValue * (t-startTime) / (midTime-startTime);
-    }
-    else if (t == midTime) {
+    } else if (t < midTime) {
+      return midTimeValue * (t - startTime) / (midTime - startTime);
+    } else if (t == midTime) {
       return midTimeValue;
-    }
-    else if (finalTime != null && t < finalTime) {
-      return midTimeValue * (finalTime-t) / (finalTime-midTime);
-    }
-    else {
+    } else if (finalTime != null && t < finalTime) {
+      return midTimeValue * (finalTime - t) / (finalTime - midTime);
+    } else {
       return 0.0;
     }
   }
 
+  /// Returns the value of the interpolation at time point `t`.
+  num operator [](num t) => at(t);
+
   @override
   String toString() {
-    return 'Start time:'+startTime.toString()+' Mid time: '+midTime.toString()+' finalTime: '+finalTime.toString()+' Value: '+midTimeValue.toString();
+    return 'Start time:' +
+        startTime.toString() +
+        ' Mid time: ' +
+        midTime.toString() +
+        ' finalTime: ' +
+        finalTime.toString() +
+        ' Value: ' +
+        midTimeValue.toString();
   }
-
 }
