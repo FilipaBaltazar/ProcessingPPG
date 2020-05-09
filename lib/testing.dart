@@ -235,9 +235,10 @@ class PPG {
   List<dynamic> get peaks {
     if (_peaks == null) {
       _peaks = findPeaks(valuesLog);
-      peaks[0] = _peaks[0].map((i) => i.round()).toList();
+      _peaks[0] = _peaks[0].map((i) => i.round()).toList();
     }
     return _peaks;
+    
   }
 
   /// Returns the indices and the values of the negative peaks of [valuesLog],
@@ -246,7 +247,11 @@ class PPG {
   /// A value is considered a negative peak if both 
   /// the previous and next value are greater or equal to it.
   List<dynamic> get negativePeaks {
-    _negativePeaks ??= findPeaks(Array.fixed(valuesLog.length) - valuesLog);
+    if (_negativePeaks == null) {
+      var zeroes = Array(List<double>.filled(valuesLog.length, 0, growable: true));
+      _negativePeaks = findPeaks(zeroes - valuesLog);
+      _negativePeaks[0] = _negativePeaks[0].map((i) => i.round()).toList();
+    }
     return _negativePeaks;
   }
 
