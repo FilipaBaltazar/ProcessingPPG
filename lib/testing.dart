@@ -193,7 +193,8 @@ class PPG {
   }
 
   List<dynamic> get negativePeaks {
-    _negativePeaks ??= findPeaks(Array.fixed(valuesLog.length)-valuesLog);
+    var zeroes = Array(List<double>.filled(valuesLog.length, 0, growable: true));
+    _negativePeaks ??= findPeaks(zeroes-valuesLog);
     return _negativePeaks;
   }
 
