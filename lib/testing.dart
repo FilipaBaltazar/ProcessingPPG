@@ -188,13 +188,20 @@ class PPG {
   }
 
   List<dynamic> get peaks {
-    _peaks ??= findPeaks(valuesLog);
+    if (_peaks == null) {
+      _peaks = findPeaks(valuesLog);
+      _peaks[0] = _peaks[0].map((i) => i.round()).toList();
+    }
     return _peaks;
+    
   }
 
   List<dynamic> get negativePeaks {
-    var zeroes = Array(List<double>.filled(valuesLog.length, 0, growable: true));
-    _negativePeaks ??= findPeaks(zeroes-valuesLog);
+    if (_negativePeaks == null) {
+      var zeroes = Array(List<double>.filled(valuesLog.length, 0, growable: true));
+      _negativePeaks = findPeaks(valuesLog);
+      _negativePeaks[0] = _negativePeaks[0].map((i) => i.round()).toList();
+    }
     return _negativePeaks;
   }
 
