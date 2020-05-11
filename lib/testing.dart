@@ -273,7 +273,7 @@ class PPG {
 
   /// Fills in [_interpolation] with [BasisFunction] objects until its length equals that of [valuesRaw].
   /// 
-  /// This is only performed if the [valuesRaw] has more than two elements, since a basis fucntion
+  /// This is only performed if the [valuesRaw] has more than two elements, since a basis function
   /// on its own is useless.
   void _completeBasisFunctions() {
     if (valuesRaw.length < 3) {
