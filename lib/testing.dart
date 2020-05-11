@@ -44,17 +44,15 @@ class Oximetry {
   ///
   /// The value is calculated using the method described by Reddy et al. (2009).
   static double value(PPG signalRed, PPG signalBlue) {
-    var paramsRed = signalParams(signalRed);
+    var paramsRed = signalParams(signalRed, blueQ: false);
     var slopeRed = median(paramsRed[0]);
     var peakRed = median(paramsRed[1]);
     var paramsBlue = signalParams(signalBlue);
     var slopeBlue = median(paramsBlue[0]);
     var peakBlue = median(paramsBlue[1]);
-    return 100 *
-        (eHbRed * sqrt(slopeBlue * peakBlue) -
-            eHbBlue * sqrt(slopeRed * peakRed)) /
-        (sqrt(slopeBlue * peakBlue) * (eHbRed - eHbOxyRed) -
-            sqrt(slopeRed * peakRed) * (eHbBlue - eHbOxyBlue));
+    var ratio = (eHbRed * sqrt(slopeBlue * peakBlue) - eHbBlue * sqrt(slopeRed * peakRed)) /
+        (eHbOxyBlue * sqrt(slopeRed * peakRed) - eHbOxyRed * sqrt(slopeBlue * peakBlue));
+    return 100 * (ratio / (ratio + 1 ));
   }
 
   /// Returns the list of slopes and peak-to-peak values of `signal`, in that order.
@@ -65,7 +63,7 @@ class Oximetry {
   /// and added to their respective lists.
   /// In the case that there is more than one negative peak, the one with lowest index is considered.
   /// The function terminates when all positive peaks have been checked.
-  static List<Array> signalParams(PPG signal) {
+  static List<Array> signalParams(PPG signal, {bool blueQ = true}) {
     var peak2peaks = Array.empty();
     var slopes = Array.empty();
     for (var i = 1; i < signal.peaks[0].length; i++) {
@@ -78,16 +76,21 @@ class Oximetry {
           (var element) => indHighPrev < element && element < indHigh,
           orElse: () => -1);
       if (indLow != -1) {
+        // timepoint of previous positive peak
+        var timeHighPrev = signal.millisInterp[indHighPrev];
         // timepoint of positive peak
         var timeHigh = signal.millisInterp[indHigh];
         // timepoint of negative peak
         var timeLow = signal.millisInterp[indLow];
+        // value of previous positive peak
+        var valueHighPrev = signal.valuesLog[indHighPrev];
         // value of positive peak
         var valueHigh = signal.valuesLog[indHigh];
         // value of negative peak
         var valueLow = signal.valuesLog[indLow];
-        var peak2peak = valueHigh - valueLow;
-        var slope = peak2peak / (timeHigh - timeLow) * 1000;
+        var peak2peak = blueQ ? valueHigh - valueLow : valueHighPrev - valueLow;
+        var deltaT = blueQ ? timeHigh - timeLow : timeLow - timeHighPrev;
+        var slope = peak2peak / deltaT * 1000;
         peak2peaks.add(peak2peak);
         slopes.add(slope);
       }
