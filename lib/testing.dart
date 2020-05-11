@@ -74,8 +74,9 @@ class Oximetry {
       // index of positive peak
       var indHigh = signal.peaks[0][i];
       // index of negative peak
-      var indLow = signal.negativePeaks[0][signal.negativePeaks[0].indexWhere(
-          (var element) => indHighPrev < element && element < indHigh)];
+      var indLow = signal.negativePeaks[0].firstWhere(
+          (var element) => indHighPrev < element && element < indHigh,
+          orElse: () => -1);
       if (indLow != -1) {
         // timepoint of positive peak
         var timeHigh = signal.millisInterp[indHigh];
