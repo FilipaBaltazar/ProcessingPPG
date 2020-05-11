@@ -45,11 +45,11 @@ class Oximetry {
   /// The value is calculated using the method described by Reddy et al. (2009).
   static double value(PPG signalRed, PPG signalBlue) {
     var paramsRed = signalParams(signalRed);
-    var slopeRed = mean(paramsRed[0]);
-    var peakRed = mean(paramsRed[1]);
+    var slopeRed = median(paramsRed[0]);
+    var peakRed = median(paramsRed[1]);
     var paramsBlue = signalParams(signalBlue);
-    var slopeBlue = mean(paramsBlue[0]);
-    var peakBlue = mean(paramsBlue[1]);
+    var slopeBlue = median(paramsBlue[0]);
+    var peakBlue = median(paramsBlue[1]);
     return 100 *
         (eHbRed * sqrt(slopeBlue * peakBlue) -
             eHbBlue * sqrt(slopeRed * peakRed)) /
@@ -74,8 +74,8 @@ class Oximetry {
       // index of positive peak
       var indHigh = signal.peaks[0][i];
       // index of negative peak
-      var indLow = signal.negativePeaks[0].indexWhere(
-          (var element) => indHighPrev < element && element < indHigh);
+      var indLow = signal.negativePeaks[0][signal.negativePeaks[0].indexWhere(
+          (var element) => indHighPrev < element && element < indHigh)];
       if (indLow != -1) {
         // timepoint of positive peak
         var timeHigh = signal.millisInterp[indHigh];
@@ -86,7 +86,7 @@ class Oximetry {
         // value of negative peak
         var valueLow = signal.valuesLog[indLow];
         var peak2peak = valueHigh - valueLow;
-        var slope = peak2peak / (timeHigh - timeLow);
+        var slope = peak2peak / (timeHigh - timeLow) * 1000;
         peak2peaks.add(peak2peak);
         slopes.add(slope);
       }
