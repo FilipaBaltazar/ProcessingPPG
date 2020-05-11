@@ -23,22 +23,22 @@ class Oximetry {
   static int lambdaBlue = 450;
 
   /// Extinction coefficient of HbO at the red wavelength, in L / mmol / cm.
-  static double eHbOxyRed = 0.442;
+  static double eHbOxyRed = 0.442*1000;
 
   /// Extinction coefficient of HbO at the green wavelength, in L / mmol / cm.
-  static double eHbOxyGreen = 2.42024;
+  static double eHbOxyGreen = 2.42024*1000;
 
   /// Extinction coefficient of HbO at the blue wavelength, in L / mmol / cm.
-  static double eHbOxyBlue = 6.2816;
+  static double eHbOxyBlue = 6.2816*1000;
 
   /// Extinction coefficient of Hb at the red wavelength, in L / mmol / cm.
-  static double eHbRed = 4.3542;
+  static double eHbRed = 4.3542*1000;
 
   /// Extinction coefficient of Hb at the green wavelength, in L / mmol / cm.
-  static double eHbGreen = 3.1589;
+  static double eHbGreen = 3.1589*1000;
 
   /// Extinction coefficient of Hb at the blue wavelength, in L / mmol / cm.
-  static double eHbBlue = 10.3292;
+  static double eHbBlue = 10.3292*1000;
 
   /// Returns the SpO2 value of calculated from the [PPG] signals `signalRed` and `signalBlue`.
   ///
@@ -50,8 +50,8 @@ class Oximetry {
     var paramsBlue = signalParams(signalBlue);
     var slopeBlue = median(paramsBlue[0]);
     var peakBlue = median(paramsBlue[1]);
-    var ratio = (eHbRed * peakBlue - eHbBlue * peakRed) /
-        (eHbOxyBlue * peakRed - eHbOxyRed * peakBlue);
+    var ratio = (eHbRed * sqrt(slopeBlue * peakBlue) - eHbBlue * sqrt(slopeRed * peakRed)) /
+        (eHbOxyBlue * sqrt(slopeRed * peakRed) - eHbOxyRed * sqrt(slopeBlue * peakBlue));
     return 100 * (ratio / (ratio + 1 ));
   }
 
