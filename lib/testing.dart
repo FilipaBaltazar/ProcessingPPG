@@ -50,8 +50,8 @@ class Oximetry {
     var paramsBlue = signalParams(signalBlue);
     var slopeBlue = median(paramsBlue[0]);
     var peakBlue = median(paramsBlue[1]);
-    var ratio = (eHbRed * sqrt(slopeBlue * peakBlue) - eHbBlue * sqrt(slopeRed * peakRed)) /
-        (eHbOxyBlue * sqrt(slopeRed * peakRed) - eHbOxyRed * sqrt(slopeBlue * peakBlue));
+    var ratio = (eHbRed * peakBlue - eHbBlue * peakRed) /
+        (eHbOxyBlue * peakRed - eHbOxyRed * peakBlue);
     return 100 * (ratio / (ratio + 1 ));
   }
 
