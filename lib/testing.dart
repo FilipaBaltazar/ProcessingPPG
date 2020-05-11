@@ -29,7 +29,7 @@ class Oximetry {
   static double eHbOxyGreen = 2.42024*1000;
 
   /// Extinction coefficient of HbO at the blue wavelength, in L / mmol / cm.
-  static double eHbOxyBlue = 6.2816*1000;
+  static double eHbOxyBlue = 44480;
 
   /// Extinction coefficient of Hb at the red wavelength, in L / mmol / cm.
   static double eHbRed = 4.3542*1000;
@@ -38,7 +38,7 @@ class Oximetry {
   static double eHbGreen = 3.1589*1000;
 
   /// Extinction coefficient of Hb at the blue wavelength, in L / mmol / cm.
-  static double eHbBlue = 10.3292*1000;
+  static double eHbBlue = 23388.8;
 
   /// Returns the SpO2 value of calculated from the [PPG] signals `signalRed` and `signalBlue`.
   ///
