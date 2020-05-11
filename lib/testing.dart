@@ -287,7 +287,7 @@ class PPG {
     }
     if (_interpolation.length < length) {
       _interpolation.removeLast();
-      for (var i = interpolation.length; i < length - 1; i++) {
+      for (var i = _interpolation.length; i < length - 1; i++) {
         _interpolation.add(BasisFunction(
             millis[i - 1],
             millis[i],
@@ -296,6 +296,7 @@ class PPG {
       }
       _interpolation.add(BasisFunction(
           millis[length - 2], millis.last, null, valuesRaw.last)); 
+      print(_interpolation.length==length);
     }
   }
 
