@@ -120,12 +120,12 @@ class PPG {
   int samplingRate;
 
   final List<BasisFunction> _interpolation = [];
-  Array _valuesInterp;
-  Array _millisInterp;
-  Array _valuesLog;
+  Array _valuesInterp = Array.empty();
+  Array _millisInterp = Array.empty();
+  Array _valuesLog = Array.empty();
   double _pulseRate;
-  List<dynamic> _peaks;
-  List<dynamic> _negativePeaks;
+  List<dynamic> _peaks = [];
+  List<dynamic> _negativePeaks = [];
 
   /// High frequency cut-off of the band-pass filter applied to
   /// [valuesInterp] before obtaining [valuesLog].
