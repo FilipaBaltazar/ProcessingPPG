@@ -14,31 +14,31 @@ class SensorValue {
 
 class Oximetry {
   /// Wavelength assumed for the red channel, in nm.
-  static int lambdaRed = 640;
+  static int lambdaRed = 612;
 
   /// Wavelength assumed for the green channel, in nm.
-  static int lambdaGreen = 520;
+  static int lambdaGreen = 550;
 
   /// Wavelength assumed for the blue channel, in nm.
-  static int lambdaBlue = 450;
+  static int lambdaBlue = 468;
 
   /// Extinction coefficient of HbO at the red wavelength, in L / mmol / cm.
-  static double eHbOxyRed = 0.442*1000;
+  static double eHbOxyRed = 1364.4;
 
   /// Extinction coefficient of HbO at the green wavelength, in L / mmol / cm.
-  static double eHbOxyGreen = 2.42024*1000;
+  static double eHbOxyGreen = 43016;
 
   /// Extinction coefficient of HbO at the blue wavelength, in L / mmol / cm.
-  static double eHbOxyBlue = 44480;
+  static double eHbOxyBlue = 34870.8;
 
   /// Extinction coefficient of Hb at the red wavelength, in L / mmol / cm.
-  static double eHbRed = 4.3542*1000;
+  static double eHbRed = 8591.2;
 
   /// Extinction coefficient of Hb at the green wavelength, in L / mmol / cm.
-  static double eHbGreen = 3.1589*1000;
+  static double eHbGreen = 53412;
 
   /// Extinction coefficient of Hb at the blue wavelength, in L / mmol / cm.
-  static double eHbBlue = 23388.8;
+  static double eHbBlue = 17025.6;
 
   /// Returns the SpO2 value of calculated from the [PPG] signals `signalRed` and `signalBlue`.
   ///
