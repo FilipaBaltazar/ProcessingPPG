@@ -120,12 +120,12 @@ class PPG {
   int samplingRate;
 
   final List<BasisFunction> _interpolation = [];
-  Array _valuesInterp;
-  Array _millisInterp;
-  Array _valuesLog;
+  Array _valuesInterp = Array.empty();
+  Array _millisInterp = Array.empty();
+  Array _valuesLog = Array.empty();
   double _pulseRate;
-  List<dynamic> _peaks;
-  List<dynamic> _negativePeaks;
+  List<dynamic> _peaks = [];
+  List<dynamic> _negativePeaks = [];
 
   /// High frequency cut-off of the band-pass filter applied to
   /// [valuesInterp] before obtaining [valuesLog].
@@ -201,7 +201,7 @@ class PPG {
 
   /// Returns the timespan since [start] of each data point in [valuesInterp], in milliseconds.
   Array get millisInterp {
-    if (_millisInterp == null) {
+    if (true) {
       _millisInterp = Array(List<double>.generate(
           (millis.last * samplingRate / 1000).floor() + 1,
           (index) => index * 1 / samplingRate * 1000));
@@ -211,7 +211,7 @@ class PPG {
 
   /// Returns the interpolated values obtained from [valuesRaw] at a sampling rate of [samplingRate].
   Array get valuesInterp {
-    if (_valuesInterp == null) {
+    if (true) {
       _valuesInterp = interpolate(millisInterp);
     }
     return _valuesInterp;
@@ -219,7 +219,7 @@ class PPG {
 
   /// Returns the logarithm of [valuesInterp], applied after filtering.
   Array get valuesLog {
-    if (_valuesLog == null) {
+    if (true) {
       var frequencyNyquist = 0.5 * samplingRate;
       var bandPassWindow = Array([frequencyLow, frequencyHigh]);
       var normalBandPassWindow =
@@ -238,7 +238,7 @@ class PPG {
   /// A value is considered a positive peak if both 
   /// the previous and next value are smaller or equal to it.
   List<dynamic> get peaks {
-    if (_peaks == null) {
+    if (true) {
       _peaks = findPeaks(valuesLog);
       _peaks[0] = _peaks[0].map((i) => i.round()).toList();
     }
@@ -252,7 +252,7 @@ class PPG {
   /// A value is considered a negative peak if both 
   /// the previous and next value are greater or equal to it.
   List<dynamic> get negativePeaks {
-    if (_negativePeaks == null) {
+    if (true) {
       var zeroes = Array(List<double>.filled(valuesLog.length, 0, growable: true));
       _negativePeaks = findPeaks(zeroes - valuesLog);
       _negativePeaks[0] = _negativePeaks[0].map((i) => i.round()).toList();
@@ -262,7 +262,7 @@ class PPG {
 
   /// Returns the pulse rate calculated from [valuesLog].
   double get pulseRate {
-    if (_pulseRate == null) {
+    if (true) {
       // print('peaks');
       var indices = peaks[0];
       // print('Filtered values');
