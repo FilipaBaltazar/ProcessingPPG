@@ -105,6 +105,7 @@ class PPG {
 
   Array _valuesDC = Array.empty();
   Array _valuesAC = Array.empty();
+  List<SensorValue> _sensorValuesRaw = [];
   List<SensorValue> _sensorValuesLog = [];
 
   /// [DateTime] values of each data point in the PPG signal.
@@ -178,6 +179,16 @@ class PPG {
   List<DateTime> get timesAC {
     return dates.sublist(
         (windowSize / 2).floor(), length - (windowSize / 2).ceil() + 1);
+  }
+
+  List<SensorValue> get sensorValuesRaw {
+    var i = _sensorValuesRaw.length;
+    while (i < valuesRaw.length) {
+      _sensorValuesRaw
+          .add(SensorValue(dates[i], valuesRaw[i]));
+      i++;
+    }
+    return _sensorValuesRaw;
   }
 
   List<SensorValue> get sensorValuesLog {
