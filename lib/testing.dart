@@ -129,8 +129,8 @@ class PPG {
   Array _millisInterp = Array.empty();
   Array _valuesFiltered = Array.empty();
   double _pulseRate;
-  List<Array> _peaks = [];
-  List<Array> _negativePeaks = [];
+  List<dynamic> _peaks = [];
+  List<dynamic> _negativePeaks = [];
 
 
   /// High frequency cut-off of the band-pass filter applied to
@@ -280,10 +280,13 @@ class PPG {
   /// 
   /// A value is considered a positive peak if both 
   /// the previous and next value are smaller or equal to it.
-  List<Array> get peaks {
+  List<dynamic> get peaks {
     if (true) {
       _peaks = findPeaks(valuesFiltered);
-      _peaks[0] = Array(_peaks[0].map((i) => millisInterp[i.round()]).toList());
+      _peaks[0] = _peaks[0].map((i) => i.round()).toList();
+      var millis = Array.empty();
+      _peaks[0].forEach((i) => {millis.add(millisInterp[i])});
+      _peaks.length < 3 ? _peaks.add(millis) : _peaks[3] = millis;
     }
     return _peaks;
     
@@ -294,11 +297,14 @@ class PPG {
   /// 
   /// A value is considered a negative peak if both 
   /// the previous and next value are greater or equal to it.
-  List<Array> get negativePeaks {
+  List<dynamic> get negativePeaks {
     if (true) {
       var zeroes = Array(List<double>.filled(valuesFiltered.length, 0, growable: true));
       _negativePeaks = findPeaks(zeroes - valuesFiltered);
-      _negativePeaks[0] = Array(_negativePeaks[0].map((i) => millisInterp[i.round()]).toList());
+      _negativePeaks[0] = _negativePeaks[0].map((i) => i.round()).toList();
+      var millis = Array.empty();
+      _negativePeaks[0].forEach((i) => {millis.add(millisInterp[i])});
+      _negativePeaks.length < 3 ? _negativePeaks.add(millis) : _negativePeaks[3] = millis;
     }
     return _negativePeaks;
   }
@@ -312,8 +318,8 @@ class PPG {
       // print(valuesLog);
       // print(durationsInterp.last);
       // print(durations.last);
-      var timeSpan = peaks[0].last-peaks[0].first;
-      _pulseRate = ((peaks[0].length - 1) / (timeSpan / 1000)) * 60;
+      var timeSpan = peaks[2].last-peaks[2].first;
+      _pulseRate = ((peaks[2].length - 1) / (timeSpan / 1000)) * 60;
     }
     return _pulseRate;
   }
@@ -327,8 +333,8 @@ class PPG {
   }
 
   void _fillBasisFunctionsEnvelope(){
-      _fillBasisFunctions(_interpolationPeaks, peaks[0], peaks[1]);
-      _fillBasisFunctions(_interpolationNegPeaks, peaks[0], peaks[1]);
+      _fillBasisFunctions(_interpolationPeaks, peaks[2], peaks[1]);
+      _fillBasisFunctions(_interpolationNegPeaks, peaks[2], peaks[1]);
   }
 
   static void _fillBasisFunctions(List<BasisFunction> basisFunctions, Array times, Array values) {

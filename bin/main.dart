@@ -43,5 +43,4 @@ void main(List<String> arguments) {
   }
 
   print(ppg.pulseRate);
-  print(Oximetry.value(ppg,ppg));
 }
