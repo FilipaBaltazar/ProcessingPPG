@@ -13,92 +13,92 @@ class SensorValue {
   SensorValue(this.time, this.value);
 }
 
-class Oximetry {
-  /// Wavelength assumed for the red channel, in nm.
-  static int lambdaRed = 612;
+// class Oximetry {
+//   /// Wavelength assumed for the red channel, in nm.
+//   static int lambdaRed = 612;
 
-  /// Wavelength assumed for the green channel, in nm.
-  static int lambdaGreen = 550;
+//   /// Wavelength assumed for the green channel, in nm.
+//   static int lambdaGreen = 550;
 
-  /// Wavelength assumed for the blue channel, in nm.
-  static int lambdaBlue = 468;
+//   /// Wavelength assumed for the blue channel, in nm.
+//   static int lambdaBlue = 468;
 
-  /// Extinction coefficient of HbO at the red wavelength, in L / mmol / cm.
-  static double eHbOxyRed = 1364.4;
+//   /// Extinction coefficient of HbO at the red wavelength, in L / mmol / cm.
+//   static double eHbOxyRed = 1364.4;
 
-  /// Extinction coefficient of HbO at the green wavelength, in L / mmol / cm.
-  static double eHbOxyGreen = 43016;
+//   /// Extinction coefficient of HbO at the green wavelength, in L / mmol / cm.
+//   static double eHbOxyGreen = 43016;
 
-  /// Extinction coefficient of HbO at the blue wavelength, in L / mmol / cm.
-  static double eHbOxyBlue = 34870.8;
+//   /// Extinction coefficient of HbO at the blue wavelength, in L / mmol / cm.
+//   static double eHbOxyBlue = 34870.8;
 
-  /// Extinction coefficient of Hb at the red wavelength, in L / mmol / cm.
-  static double eHbRed = 8591.2;
+//   /// Extinction coefficient of Hb at the red wavelength, in L / mmol / cm.
+//   static double eHbRed = 8591.2;
 
-  /// Extinction coefficient of Hb at the green wavelength, in L / mmol / cm.
-  static double eHbGreen = 53412;
+//   /// Extinction coefficient of Hb at the green wavelength, in L / mmol / cm.
+//   static double eHbGreen = 53412;
 
-  /// Extinction coefficient of Hb at the blue wavelength, in L / mmol / cm.
-  static double eHbBlue = 17025.6;
+//   /// Extinction coefficient of Hb at the blue wavelength, in L / mmol / cm.
+//   static double eHbBlue = 17025.6;
 
-  /// Returns the SpO2 value of calculated from the [PPG] signals `signalRed` and `signalBlue`.
-  ///
-  /// The value is calculated using the method described by Reddy et al. (2009).
-  static double value(PPG signalRed, PPG signalBlue) {
-    var paramsRed = signalParams(signalRed, blueQ: false);
-    var slopeRed = median(paramsRed[0]);
-    var peakRed = median(paramsRed[1]);
-    var paramsBlue = signalParams(signalBlue);
-    var slopeBlue = median(paramsBlue[0]);
-    var peakBlue = median(paramsBlue[1]);
-    var ratio = (eHbRed * sqrt(slopeBlue * peakBlue) - eHbBlue * sqrt(slopeRed * peakRed)) /
-        (eHbOxyBlue * sqrt(slopeRed * peakRed) - eHbOxyRed * sqrt(slopeBlue * peakBlue));
-    return 100 * (ratio / (ratio + 1 ));
-  }
+//   /// Returns the SpO2 value of calculated from the [PPG] signals `signalRed` and `signalBlue`.
+//   ///
+//   /// The value is calculated using the method described by Reddy et al. (2009).
+//   static double value(PPG signalRed, PPG signalBlue) {
+//     var paramsRed = signalParams(signalRed, blueQ: false);
+//     var slopeRed = median(paramsRed[0]);
+//     var peakRed = median(paramsRed[1]);
+//     var paramsBlue = signalParams(signalBlue);
+//     var slopeBlue = median(paramsBlue[0]);
+//     var peakBlue = median(paramsBlue[1]);
+//     var ratio = (eHbRed * sqrt(slopeBlue * peakBlue) - eHbBlue * sqrt(slopeRed * peakRed)) /
+//         (eHbOxyBlue * sqrt(slopeRed * peakRed) - eHbOxyRed * sqrt(slopeBlue * peakBlue));
+//     return 100 * (ratio / (ratio + 1 ));
+//   }
 
-  /// Returns the list of slopes and peak-to-peak values of `signal`, in that order.
-  /// 
-  /// For each pair of consecutive positive peaks, 
-  /// the function checks whether there is a negative peak between them.
-  /// If there is, then the slope and peak-to-peak value are calculated
-  /// and added to their respective lists.
-  /// In the case that there is more than one negative peak, the one with lowest index is considered.
-  /// The function terminates when all positive peaks have been checked.
-  static List<Array> signalParams(PPG signal, {bool blueQ = true}) {
-    var peak2peaks = Array.empty();
-    var slopes = Array.empty();
-    for (var i = 1; i < signal.peaks[0].length; i++) {
-      // index of the prev positive peak
-      var indHighPrev = signal.peaks[0][i - 1];
-      // index of positive peak
-      var indHigh = signal.peaks[0][i];
-      // index of negative peak
-      var indLow = signal.negativePeaks[0].firstWhere(
-          (var element) => indHighPrev < element && element < indHigh,
-          orElse: () => -1);
-      if (indLow != -1) {
-        // timepoint of previous positive peak
-        var timeHighPrev = signal.millisInterp[indHighPrev];
-        // timepoint of positive peak
-        var timeHigh = signal.millisInterp[indHigh];
-        // timepoint of negative peak
-        var timeLow = signal.millisInterp[indLow];
-        // value of previous positive peak
-        var valueHighPrev = signal.valuesFiltered[indHighPrev];
-        // value of positive peak
-        var valueHigh = signal.valuesFiltered[indHigh];
-        // value of negative peak
-        var valueLow = signal.valuesFiltered[indLow];
-        var peak2peak = blueQ ? valueHigh - valueLow : valueHighPrev - valueLow;
-        var deltaT = blueQ ? timeHigh - timeLow : timeLow - timeHighPrev;
-        var slope = peak2peak / deltaT * 1000;
-        peak2peaks.add(peak2peak);
-        slopes.add(slope);
-      }
-    }
-    return [slopes, peak2peaks];
-  }
-}
+//   /// Returns the list of slopes and peak-to-peak values of `signal`, in that order.
+//   /// 
+//   /// For each pair of consecutive positive peaks, 
+//   /// the function checks whether there is a negative peak between them.
+//   /// If there is, then the slope and peak-to-peak value are calculated
+//   /// and added to their respective lists.
+//   /// In the case that there is more than one negative peak, the one with lowest index is considered.
+//   /// The function terminates when all positive peaks have been checked.
+//   static List<Array> signalParams(PPG signal, {bool blueQ = true}) {
+//     var peak2peaks = Array.empty();
+//     var slopes = Array.empty();
+//     for (var i = 1; i < signal.peaks[0].length; i++) {
+//       // index of the prev positive peak
+//       var indHighPrev = signal.peaks[0][i - 1];
+//       // index of positive peak
+//       var indHigh = signal.peaks[0][i];
+//       // index of negative peak
+//       var indLow = signal.negativePeaks[0].firstWhere(
+//           (var element) => indHighPrev < element && element < indHigh,
+//           orElse: () => -1);
+//       if (indLow != -1) {
+//         // timepoint of previous positive peak
+//         var timeHighPrev = signal.millisInterp[indHighPrev];
+//         // timepoint of positive peak
+//         var timeHigh = signal.millisInterp[indHigh];
+//         // timepoint of negative peak
+//         var timeLow = signal.millisInterp[indLow];
+//         // value of previous positive peak
+//         var valueHighPrev = signal.valuesFiltered[indHighPrev];
+//         // value of positive peak
+//         var valueHigh = signal.valuesFiltered[indHigh];
+//         // value of negative peak
+//         var valueLow = signal.valuesFiltered[indLow];
+//         var peak2peak = blueQ ? valueHigh - valueLow : valueHighPrev - valueLow;
+//         var deltaT = blueQ ? timeHigh - timeLow : timeLow - timeHighPrev;
+//         var slope = peak2peak / deltaT * 1000;
+//         peak2peaks.add(peak2peak);
+//         slopes.add(slope);
+//       }
+//     }
+//     return [slopes, peak2peaks];
+//   }
+// }
 
 class PPG {
   /// Raw values of each data point in the PPG signal.
