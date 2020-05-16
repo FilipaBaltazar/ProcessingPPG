@@ -4,6 +4,7 @@ import 'package:smart_signal_processing/smart_signal_processing.dart';
 import "dart:typed_data";
 import 'package:scidart/numdart.dart';
 import 'package:scidart/scidart.dart';
+import 'dart:math';
 
 class SensorValue {
   final DateTime time;
@@ -83,11 +84,11 @@ class Oximetry {
         // timepoint of negative peak
         var timeLow = signal.millisInterp[indLow];
         // value of previous positive peak
-        var valueHighPrev = signal.valuesLog[indHighPrev];
+        var valueHighPrev = signal.valuesFiltered[indHighPrev];
         // value of positive peak
-        var valueHigh = signal.valuesLog[indHigh];
+        var valueHigh = signal.valuesFiltered[indHigh];
         // value of negative peak
-        var valueLow = signal.valuesLog[indLow];
+        var valueLow = signal.valuesFiltered[indLow];
         var peak2peak = blueQ ? valueHigh - valueLow : valueHighPrev - valueLow;
         var deltaT = blueQ ? timeHigh - timeLow : timeLow - timeHighPrev;
         var slope = peak2peak / deltaT * 1000;
@@ -126,18 +127,18 @@ class PPG {
   final List<BasisFunction> _interpolationNegPeaks = [];
   Array _valuesInterp = Array.empty();
   Array _millisInterp = Array.empty();
-  Array _valuesLog = Array.empty();
+  Array _valuesFiltered = Array.empty();
   double _pulseRate;
   List<Array> _peaks = [];
   List<Array> _negativePeaks = [];
 
 
   /// High frequency cut-off of the band-pass filter applied to
-  /// [valuesInterp] before obtaining [valuesLog].
+  /// [valuesInterp] before obtaining [valuesFiltered].
   double frequencyHigh = 3;
 
   /// Low frequency cut-off of the band-pass filter applied to
-  /// [valuesInterp] before obtaining [valuesLog].
+  /// [valuesInterp] before obtaining [valuesFiltered].
   double frequencyLow = 0.1;
 
   PPG(this.samplingRate);
@@ -199,10 +200,10 @@ class PPG {
 
   List<SensorValue> get sensorValuesLog {
     var i = _sensorValuesLog.length;
-    while (i < valuesLog.length) {
+    while (i < valuesFiltered.length) {
       var date = start.add(Duration(microseconds: (millisInterp[i]*1000).round()));
       _sensorValuesLog
-          .add(SensorValue(date, valuesLog[i]));
+          .add(SensorValue(date, valuesFiltered[i]));
       i++;
     }
     return _sensorValuesLog;
@@ -245,8 +246,8 @@ class PPG {
     return _valuesInterp;
   }
 
-  /// Returns the logarithm of [valuesInterp], applied after filtering.
-  Array get valuesLog {
+  /// Returns a filtered version of [valuesInterp].
+  Array get valuesFiltered {
     if (true) {
       var frequencyNyquist = 0.5 * samplingRate;
       var bandPassWindow = Array([frequencyLow, frequencyHigh]);
@@ -255,40 +256,54 @@ class PPG {
       var filterOrder = 30;
       var filterCoeffs =
           firwin(filterOrder, normalBandPassWindow, pass_zero: false);
-      _valuesLog = (lfilter(filterCoeffs, Array([1.0]), valuesInterp));
+      _valuesFiltered = (lfilter(filterCoeffs, Array([1.0]), valuesInterp));
     }
-    return _valuesLog;
+    return _valuesFiltered;
   }
 
-  /// Returns the indices and the values of the positive peaks of [valuesLog],
+  /// Returns the mean envelope of [valuesFiltered].
+  Array get valuesMeanEnvelope {
+    var _valuesUpper = interpolate(_interpolationPeaks, millisInterp);
+    var _valuesLower = interpolate(_interpolationNegPeaks, millisInterp);
+    var result = (_valuesUpper - _valuesLower);
+    result.forEach((element) {element/2;});
+    return result;
+  }
+
+  /// Returns the difference between [valuesFiltered] and [valuesMeanEnvelope].
+  Array get valuesProcessed {
+    return valuesFiltered - valuesMeanEnvelope;
+  }
+
+  /// Returns the indices and the values of the positive peaks of [valuesFiltered],
   /// in that order.
   /// 
   /// A value is considered a positive peak if both 
   /// the previous and next value are smaller or equal to it.
   List<Array> get peaks {
     if (true) {
-      _peaks = findPeaks(valuesLog);
+      _peaks = findPeaks(valuesFiltered);
       _peaks[0] = Array(_peaks[0].map((i) => millisInterp[i.round()]).toList());
     }
     return _peaks;
     
   }
 
-  /// Returns the indices and the values of the negative peaks of [valuesLog],
+  /// Returns the indices and the values of the negative peaks of [valuesFiltered],
   /// in that order.
   /// 
   /// A value is considered a negative peak if both 
   /// the previous and next value are greater or equal to it.
   List<Array> get negativePeaks {
     if (true) {
-      var zeroes = Array(List<double>.filled(valuesLog.length, 0, growable: true));
-      _negativePeaks = findPeaks(zeroes - valuesLog);
+      var zeroes = Array(List<double>.filled(valuesFiltered.length, 0, growable: true));
+      _negativePeaks = findPeaks(zeroes - valuesFiltered);
       _negativePeaks[0] = Array(_negativePeaks[0].map((i) => millisInterp[i.round()]).toList());
     }
     return _negativePeaks;
   }
 
-  /// Returns the pulse rate calculated from [valuesLog].
+  /// Returns the pulse rate calculated from [valuesFiltered].
   double get pulseRate {
     if (true) {
       // print('peaks');
@@ -312,7 +327,8 @@ class PPG {
   }
 
   void _fillBasisFunctionsEnvelope(){
-      _fillBasisFunctions(_interpolationPeaks, times, peaks)
+      _fillBasisFunctions(_interpolationPeaks, peaks[0], peaks[1]);
+      _fillBasisFunctions(_interpolationNegPeaks, peaks[0], peaks[1]);
   }
 
   static void _fillBasisFunctions(List<BasisFunction> basisFunctions, Array times, Array values) {
