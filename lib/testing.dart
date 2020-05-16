@@ -252,7 +252,7 @@ class PPG {
       var filterOrder = 30;
       var filterCoeffs =
           firwin(filterOrder, normalBandPassWindow, pass_zero: false);
-      _valuesLog = arrayLog(lfilter(filterCoeffs, Array([1.0]), valuesInterp));
+      _valuesLog = (lfilter(filterCoeffs, Array([1.0]), valuesInterp));
     }
     return _valuesLog;
   }
