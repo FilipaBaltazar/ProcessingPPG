@@ -73,7 +73,7 @@ class SensorValue {
 //       // index of positive peak
 //       var indHigh = signal.peaks[0][i];
 //       // index of negative peak
-//       var indLow = signal.negativePeaks[0].firstWhere(
+//       var indLow = signal.valleys[0].firstWhere(
 //           (var element) => indHighPrev < element && element < indHigh,
 //           orElse: () => -1);
 //       if (indLow != -1) {
@@ -124,13 +124,13 @@ class PPG {
 
   final List<BasisFunction> _interpolation = [];
   final List<BasisFunction> _interpolationPeaks = [];
-  final List<BasisFunction> _interpolationNegPeaks = [];
+  final List<BasisFunction> _interpolationValleys = [];
   Array _valuesInterp = Array.empty();
   Array _millisInterp = Array.empty();
   Array _valuesFiltered = Array.empty();
   double _pulseRate;
   List<dynamic> _peaks = [];
-  List<dynamic> _negativePeaks = [];
+  List<dynamic> _valleys = [];
 
 
   /// High frequency cut-off of the band-pass filter applied to
@@ -228,6 +228,20 @@ class PPG {
     return _interpolation;
   }
 
+  List<BasisFunction> get interpolationPeaks {
+    if (peaks.length > 2 && _interpolationPeaks.length < peaks.length) {
+      _fillBasisFunctionsEnvelope();
+    }
+    return _interpolationPeaks;
+  }
+
+  List<BasisFunction> get interpolationValleys {
+    if (valleys.length > 2 && _interpolationValleys.length < valleys.length) {
+      _fillBasisFunctionsEnvelope();
+    }
+    return _interpolationValleys;
+  }
+
   /// Returns the timespan since [start] of each data point in [valuesInterp], in milliseconds.
   Array get millisInterp {
     if (true) {
@@ -263,10 +277,12 @@ class PPG {
 
   /// Returns the mean envelope of [valuesFiltered].
   Array get valuesMeanEnvelope {
-    var _valuesUpper = interpolate(_interpolationPeaks, millisInterp);
-    var _valuesLower = interpolate(_interpolationNegPeaks, millisInterp);
-    var result = (_valuesUpper - _valuesLower);
-    result.forEach((element) {element/2;});
+    var _valuesUpper = interpolate(interpolationPeaks, millisInterp);
+    var _valuesLower = interpolate(interpolationValleys, millisInterp);
+    var result = (_valuesUpper + _valuesLower);
+    for (var i=0; i<result.length; i++) {
+      result[i] = result[i]/2;
+    }
     return result;
   }
 
@@ -292,21 +308,20 @@ class PPG {
     
   }
 
-  /// Returns the indices and the values of the negative peaks of [valuesFiltered],
+  /// Returns the indices and the values of the valleys of [valuesFiltered],
   /// in that order.
   /// 
   /// A value is considered a negative peak if both 
   /// the previous and next value are greater or equal to it.
-  List<dynamic> get negativePeaks {
+  List<dynamic> get valleys {
     if (true) {
-      var zeroes = Array(List<double>.filled(valuesFiltered.length, 0, growable: true));
-      _negativePeaks = findPeaks(zeroes - valuesFiltered);
-      _negativePeaks[0] = _negativePeaks[0].map((i) => i.round()).toList();
+      _valleys = findValleys(valuesFiltered);
+      _valleys[0] = _valleys[0].map((i) => i.round()).toList();
       var millis = Array.empty();
-      _negativePeaks[0].forEach((i) => {millis.add(millisInterp[i])});
-      _negativePeaks.length < 3 ? _negativePeaks.add(millis) : _negativePeaks[3] = millis;
+      _valleys[0].forEach((i) => {millis.add(millisInterp[i])});
+      _valleys.length < 3 ? _valleys.add(millis) : _valleys[3] = millis;
     }
-    return _negativePeaks;
+    return _valleys;
   }
 
   /// Returns the pulse rate calculated from [valuesFiltered].
@@ -333,8 +348,12 @@ class PPG {
   }
 
   void _fillBasisFunctionsEnvelope(){
-      _fillBasisFunctions(_interpolationPeaks, peaks[2], peaks[1]);
-      _fillBasisFunctions(_interpolationNegPeaks, peaks[2], peaks[1]);
+      var times = Array(<double>[0.0] + peaks[2].toList() + <double>[millisInterp.last]);
+      var values = Array(<double>[valuesFiltered.first] + peaks[1].toList() + <double>[valuesFiltered.last]);
+      _fillBasisFunctions(_interpolationPeaks, times, values);
+      times = Array(<double>[0.0] + valleys[2].toList() + <double>[millisInterp.last]);
+      values = Array(<double>[valuesFiltered.first] + valleys[1].toList() + <double>[valuesFiltered.last]);
+      _fillBasisFunctions(_interpolationValleys, times, values);
   }
 
   static void _fillBasisFunctions(List<BasisFunction> basisFunctions, Array times, Array values) {
@@ -428,6 +447,29 @@ class PPG {
           ? Y.elementAt(i) + X.elementAt(i)
           : Y.elementAt(i) - X.elementAt(i));
     }
+  }
+
+  static List findValleys(Array a, {double threshold}) {
+    var N = a.length - 2;
+    Array ix = Array.empty();
+    Array ax = Array.empty();
+
+    if (threshold != null) {
+      for (int i = 1; i <= N; i++) {
+        if (a[i - 1] >= a[i] && a[i] <= a[i + 1] && a[i] <= threshold) {
+          ix.add(i.toDouble());
+          ax.add(a[i]);
+        }
+      }
+    } else {
+      for (int i = 1; i <= N; i++) {
+        if (a[i - 1] >= a[i] && a[i] <= a[i + 1]) {
+          ix.add(i.toDouble());
+          ax.add(a[i]);
+        }
+      }
+    }
+    return [ix, ax];
   }
 
   //static Array
