@@ -107,6 +107,7 @@ class PPG {
   Array _valuesAC = Array.empty();
   List<SensorValue> _sensorValuesRaw = [];
   List<SensorValue> _sensorValuesLog = [];
+  List<SensorValue> _sensorValuesInterp = [];
 
   /// [DateTime] values of each data point in the PPG signal.
   List<DateTime> dates = [];
@@ -181,6 +182,8 @@ class PPG {
         (windowSize / 2).floor(), length - (windowSize / 2).ceil() + 1);
   }
 
+  
+
   List<SensorValue> get sensorValuesRaw {
     var i = _sensorValuesRaw.length;
     while (i < valuesRaw.length) {
@@ -200,6 +203,17 @@ class PPG {
       i++;
     }
     return _sensorValuesLog;
+  }
+
+  List<SensorValue> get sensorValuesInterp {
+    var i = _sensorValuesInterp.length;
+    while (i < valuesInterp.length) {
+      var date = start.add(Duration(microseconds: (millisInterp[i]*1000).round()));
+      _sensorValuesInterp
+          .add(SensorValue(date, valuesInterp[i]));
+      i++;
+    }
+    return _sensorValuesInterp;
   }
 
   /// Returns the list of linear basis functions used to interpolate [valuesRaw].
