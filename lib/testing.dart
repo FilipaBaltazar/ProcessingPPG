@@ -122,12 +122,15 @@ class PPG {
   int samplingRate;
 
   final List<BasisFunction> _interpolation = [];
+  final List<BasisFunction> _interpolationPeaks = [];
+  final List<BasisFunction> _interpolationNegPeaks = [];
   Array _valuesInterp = Array.empty();
   Array _millisInterp = Array.empty();
   Array _valuesLog = Array.empty();
   double _pulseRate;
-  List<dynamic> _peaks = [];
-  List<dynamic> _negativePeaks = [];
+  List<Array> _peaks = [];
+  List<Array> _negativePeaks = [];
+
 
   /// High frequency cut-off of the band-pass filter applied to
   /// [valuesInterp] before obtaining [valuesLog].
@@ -219,7 +222,7 @@ class PPG {
   /// Returns the list of linear basis functions used to interpolate [valuesRaw].
   List<BasisFunction> get interpolation {
     if (valuesRaw.length > 2 && _interpolation.length < valuesRaw.length) {
-      _completeBasisFunctions();
+      _fillBasisFunctionsPPG();
     }
     return _interpolation;
   }
@@ -237,7 +240,7 @@ class PPG {
   /// Returns the interpolated values obtained from [valuesRaw] at a sampling rate of [samplingRate].
   Array get valuesInterp {
     if (true) {
-      _valuesInterp = interpolate(millisInterp);
+      _valuesInterp = interpolatePPG();
     }
     return _valuesInterp;
   }
@@ -262,10 +265,10 @@ class PPG {
   /// 
   /// A value is considered a positive peak if both 
   /// the previous and next value are smaller or equal to it.
-  List<dynamic> get peaks {
+  List<Array> get peaks {
     if (true) {
       _peaks = findPeaks(valuesLog);
-      _peaks[0] = _peaks[0].map((i) => i.round()).toList();
+      _peaks[0] = Array(_peaks[0].map((i) => millisInterp[i.round()]).toList());
     }
     return _peaks;
     
@@ -276,11 +279,11 @@ class PPG {
   /// 
   /// A value is considered a negative peak if both 
   /// the previous and next value are greater or equal to it.
-  List<dynamic> get negativePeaks {
+  List<Array> get negativePeaks {
     if (true) {
       var zeroes = Array(List<double>.filled(valuesLog.length, 0, growable: true));
       _negativePeaks = findPeaks(zeroes - valuesLog);
-      _negativePeaks[0] = _negativePeaks[0].map((i) => i.round()).toList();
+      _negativePeaks[0] = Array(_negativePeaks[0].map((i) => millisInterp[i.round()]).toList());
     }
     return _negativePeaks;
   }
@@ -289,14 +292,13 @@ class PPG {
   double get pulseRate {
     if (true) {
       // print('peaks');
-      var indices = peaks[0];
+      //var indices = peaks[0];
       // print('Filtered values');
       // print(valuesLog);
       // print(durationsInterp.last);
       // print(durations.last);
-      var timeSpan = millisInterp[(indices.last.round())] -
-          millisInterp[(indices.first.round())];
-      _pulseRate = ((indices.length - 1) / (timeSpan / 1000)) * 60;
+      var timeSpan = peaks[0].last-peaks[0].first;
+      _pulseRate = ((peaks[0].length - 1) / (timeSpan / 1000)) * 60;
     }
     return _pulseRate;
   }
@@ -305,42 +307,54 @@ class PPG {
   /// 
   /// This is only performed if the [valuesRaw] has more than two elements, since a basis function
   /// on its own is useless.
-  void _completeBasisFunctions() {
-    if (valuesRaw.length < 3) {
+  void _fillBasisFunctionsPPG() {
+    _fillBasisFunctions(_interpolation, millis, valuesRaw);
+  }
+
+  void _fillBasisFunctionsEnvelope(){
+      _fillBasisFunctions(_interpolationPeaks, times, peaks)
+  }
+
+  static void _fillBasisFunctions(List<BasisFunction> basisFunctions, Array times, Array values) {
+    if (values.length < 3) {
       return;
     }
-    if (_interpolation.isEmpty) {
-      _interpolation.add(BasisFunction(
-          null, millis[0], millis[1], valuesRaw[0]));
-      _interpolation.add(BasisFunction(
-        millis[0], millis[1], null, valuesRaw[1]));
+    if (basisFunctions.isEmpty) {
+      basisFunctions.add(BasisFunction(
+          null, times[0], times[1], values[0]));
+      basisFunctions.add(BasisFunction(
+        times[0], times[1], null, values[1]));
     }
-    if (_interpolation.length < length) {
-      _interpolation.removeLast();
-      for (var i = _interpolation.length; i < length - 1; i++) {
-        _interpolation.add(BasisFunction(
-            millis[i - 1],
-            millis[i],
-            millis[i + 1],
-            valuesRaw[i]));
+    if (basisFunctions.length < values.length) {
+      basisFunctions.removeLast();
+      for (var i = basisFunctions.length; i < values.length - 1; i++) {
+        basisFunctions.add(BasisFunction(
+            times[i - 1],
+            times[i],
+            times[i + 1],
+            values[i]));
       }
-      _interpolation.add(BasisFunction(
-          millis[length - 2], millis.last, null, valuesRaw.last)); 
-      print(_interpolation.length==length);
+      basisFunctions.add(BasisFunction(
+          times[values.length - 2], times.last, null, values.last)); 
+      print(basisFunctions.length==values.length);
     }
   }
 
-  Array interpolate(Array times) {
+  Array interpolatePPG() {
+    return interpolate(interpolation, millisInterp);
+  }
+
+  static Array interpolate(List<BasisFunction> basisFunctions, Array times) {
     var result = Array.empty();
-    if (interpolation.isEmpty) return result;
-    assert(times.first >= interpolation.first.midTime);
-    assert(times.last <= interpolation.last.midTime);
+    if (basisFunctions.isEmpty) return result;
+    assert(times.first >= basisFunctions.first.midTime);
+    assert(times.last <= basisFunctions.last.midTime);
     var indexInterp = 0;
     var indexTime = 0;
     while (indexTime < times.length) {
-      if (times[indexTime] <= interpolation[indexInterp].finalTime) {
-        result.add(interpolation[indexInterp].at(times[indexTime]) +
-            interpolation[indexInterp + 1].at(times[indexTime]));
+      if (times[indexTime] <= basisFunctions[indexInterp].finalTime) {
+        result.add(basisFunctions[indexInterp].at(times[indexTime]) +
+            basisFunctions[indexInterp + 1].at(times[indexTime]));
         indexTime++;
       } else {
         indexInterp++;
