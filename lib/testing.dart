@@ -333,20 +333,27 @@ class PPG {
       // print(valuesLog);
       // print(durationsInterp.last);
       // print(durations.last);
-      // var timeSpan = peaks[2].last-peaks[2].first;
-      // _pulseRate = ((peaks[2].length - 1) / (timeSpan / 1000)) * 60;
+      var timeSpan = peaks[2].last-peaks[2].first;
+      _pulseRate = ((peaks[2].length - 1) / (timeSpan / 1000)) * 60;
+      print('Peak count pulse rate');
+      print(_pulseRate);
+
       var intervalsRR = arrayDiff(peaks[2]);
       var ratesRR = Array.empty();
       intervalsRR.forEach((i) => {ratesRR.add(1/i*1000*60)});
       _pulseRate = mean(ratesRR);
-      print('Mean inverse pulse rate');
+      print('Mean RR inverse pulse rate');
       print(_pulseRate);
 
-      var power = arrayComplexAbs(rfft(valuesInterp));
-      var frequency = fftFreq(valuesInterp.length, d: 1/samplingRate);
-      var index = arrayArgMax(power.getRangeArray(1,power.length));
+      var fft = arrayComplexAbs(rfft(valuesProcessed));
+      var frequency = fftFreq(valuesInterp.length, d: 1/samplingRate/60);
+      var index = arrayArgMax(fft.getRangeArray(10,fft.length));
+      _pulseRate = frequency[index];
       print('FFT pulse rate');
-      _pulseRate = frequency[index]*60;
+      print(_pulseRate);
+
+      print('FFT frequency domain (BPM)');
+      print(frequency);
 
     }
     return _pulseRate;
@@ -390,7 +397,7 @@ class PPG {
       }
       basisFunctions.add(BasisFunction(
           times[values.length - 2], times.last, null, values.last)); 
-      print(basisFunctions.length==values.length);
+      // print(basisFunctions.length==values.length);
     }
   }
 
