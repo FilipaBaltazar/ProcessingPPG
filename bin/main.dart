@@ -43,5 +43,5 @@ void main(List<String> arguments) {
   }
 
   print(ppg.pulseRate);
-  print(ppg.valuesProcessed);
+  //print(ppg.valuesProcessed);
 }

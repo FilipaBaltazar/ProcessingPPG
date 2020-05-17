@@ -333,8 +333,21 @@ class PPG {
       // print(valuesLog);
       // print(durationsInterp.last);
       // print(durations.last);
-      var timeSpan = peaks[2].last-peaks[2].first;
-      _pulseRate = ((peaks[2].length - 1) / (timeSpan / 1000)) * 60;
+      // var timeSpan = peaks[2].last-peaks[2].first;
+      // _pulseRate = ((peaks[2].length - 1) / (timeSpan / 1000)) * 60;
+      var intervalsRR = arrayDiff(peaks[2]);
+      var ratesRR = Array.empty();
+      intervalsRR.forEach((i) => {ratesRR.add(1/i*1000*60)});
+      _pulseRate = mean(ratesRR);
+      print('Mean inverse pulse rate');
+      print(_pulseRate);
+
+      var power = arrayComplexAbs(rfft(valuesInterp));
+      var frequency = fftFreq(valuesInterp.length, d: 1/samplingRate);
+      var index = arrayArgMax(power.getRangeArray(1,power.length));
+      print('FFT pulse rate');
+      _pulseRate = frequency[index]*60;
+
     }
     return _pulseRate;
   }
