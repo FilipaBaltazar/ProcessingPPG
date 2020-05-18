@@ -16,7 +16,7 @@ class SensorValue {
 
 class Oximetry {
   /// Wavelength assumed for the red channel, in nm.
-  static int lambdaRed = 612;
+  static int lambdaRed = 660; //Used to be 612
 
   /// Wavelength assumed for the green channel, in nm.
   static int lambdaGreen = 550;
@@ -25,7 +25,7 @@ class Oximetry {
   static int lambdaBlue = 468;
 
   /// Extinction coefficient of HbO at the red wavelength, in L / mmol / cm.
-  static double eHbOxyRed = 1364.4;
+  static double eHbOxyRed = 319.6;
 
   /// Extinction coefficient of HbO at the green wavelength, in L / mmol / cm.
   static double eHbOxyGreen = 43016;
@@ -34,7 +34,7 @@ class Oximetry {
   static double eHbOxyBlue = 34870.8;
 
   /// Extinction coefficient of Hb at the red wavelength, in L / mmol / cm.
-  static double eHbRed = 8591.2;
+  static double eHbRed = 3226.56;
 
   /// Extinction coefficient of Hb at the green wavelength, in L / mmol / cm.
   static double eHbGreen = 53412;
@@ -45,17 +45,17 @@ class Oximetry {
   /// Returns the SpO2 value of calculated from the [PPG] signals `signalRed` and `signalBlue`.
   ///
   /// The value is calculated using the method described by Reddy et al. (2009).
-  static double value(PPG signalRed, PPG signalGreen) {
+  static double value(PPG signalRed, PPG signalBlue) {
     var paramsRed = signalParams(signalRed, blueQ: false);
     var slopeRed = median(paramsRed[0]);
     var peakRed = median(paramsRed[1]);
-    var paramsGreen = signalParams(signalGreen);
-    var slopeGreen = median(paramsGreen[0]);
-    var peakGreen = median(paramsGreen[1]);
-    var ratio = (eHbRed * sqrt(slopeGreen * peakGreen) - eHbGreen * sqrt(slopeRed * peakRed)) /
-        (eHbOxyGreen * sqrt(slopeRed * peakRed) - eHbOxyRed * sqrt(slopeGreen * peakGreen));
-    // var ratio = (eHbRed * (peakGreen) - eHbGreen * (peakRed)) /
-    //     (eHbOxyGreen * (peakRed) - eHbOxyRed * (peakGreen));
+    var paramsBlue = signalParams(signalBlue);
+    var slopeBlue = median(paramsBlue[0]);
+    var peakBlue = median(paramsBlue[1]);
+    var ratio = (eHbRed * sqrt(slopeBlue * peakBlue) - eHbBlue * sqrt(slopeRed * peakRed)) /
+        (eHbOxyBlue * sqrt(slopeRed * peakRed) - eHbOxyRed * sqrt(slopeBlue * peakBlue));
+    // var ratio = (eHbRed * (peakBlue) - eHbBlue * (peakRed)) /
+    //     (eHbOxyBlue * (peakRed) - eHbOxyRed * (peakBlue));
     return 100 * (ratio / (ratio + 1 ));
   }
 
