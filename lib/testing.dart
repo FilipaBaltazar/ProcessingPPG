@@ -353,24 +353,24 @@ class PPG {
       print('Mean RR inverse pulse rate');
       print(_pulseRate);
 
-      var fftinterp = arrayComplexAbs(rfft(valuesInterp,n:valuesInterp.length));
-      var fftinterp = FFT.transform(Float64List.fromList(valuesInterp.toList()), Float64List.fromList([]));
-      print('fft interp');
-      print(fftinterp);
-      var fftfiltered = arrayComplexAbs(rfft(valuesFiltered,n:valuesFiltered.length));
-      print('fft filtered');
-      print(fftfiltered);
-      var fft = arrayComplexAbs(rfft(valuesProcessed,n:valuesProcessed.length));
-      print('fft processed');
-      print(fft);
-      var frequency = fftFreq(valuesInterp.length, d: 1/samplingRate/60);
-      var index = arrayArgMax(fft.getRangeArray(10,fft.length));
-      _pulseRate = frequency[index];
-      print('FFT pulse rate');
-      print(_pulseRate);
+      // var fftinterp = arrayComplexAbs(rfft(valuesInterp,n:valuesInterp.length));
+      // //var fftinterp = FFT.transform(Float64List.fromList(valuesInterp.toList()), Float64List.fromList([]));
+      // print('fft interp');
+      // print(fftinterp);
+      // var fftfiltered = arrayComplexAbs(rfft(valuesFiltered,n:valuesFiltered.length));
+      // print('fft filtered');
+      // print(fftfiltered);
+      // var fft = arrayComplexAbs(rfft(valuesProcessed,n:valuesProcessed.length));
+      // print('fft processed');
+      // print(fft);
+      // var frequency = fftFreq(valuesInterp.length, d: 1/samplingRate/60);
+      // var index = arrayArgMax(fft.getRangeArray(10,fft.length));
+      // _pulseRate = frequency[index];
+      // print('FFT pulse rate');
+      // print(_pulseRate);
 
-      print('FFT frequency domain (BPM)');
-      print(frequency);
+      // print('FFT frequency domain (BPM)');
+      // print(frequency);
     
 
     }
