@@ -345,7 +345,15 @@ class PPG {
       print('Mean RR inverse pulse rate');
       print(_pulseRate);
 
+      var fftinterp = arrayComplexAbs(rfft(valuesInterp));
+      print('fft interp');
+      print(fftinterp);
+      var fftfiltered = arrayComplexAbs(rfft(valuesFiltered));
+      print('fft filtered');
+      print(fftfiltered);
       var fft = arrayComplexAbs(rfft(valuesProcessed));
+      print('fft processed');
+      print(fft);
       var frequency = fftFreq(valuesInterp.length, d: 1/samplingRate/60);
       var index = arrayArgMax(fft.getRangeArray(10,fft.length));
       _pulseRate = frequency[index];
@@ -354,6 +362,7 @@ class PPG {
 
       print('FFT frequency domain (BPM)');
       print(frequency);
+    
 
     }
     return _pulseRate;
