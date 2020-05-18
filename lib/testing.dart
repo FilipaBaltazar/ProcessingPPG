@@ -56,7 +56,7 @@ class Oximetry {
         (eHbOxyBlue * sqrt(slopeRed * peakRed) - eHbOxyRed * sqrt(slopeBlue * peakBlue));
     // var ratio = (eHbRed * (peakBlue) - eHbBlue * (peakRed)) /
     //     (eHbOxyBlue * (peakRed) - eHbOxyRed * (peakBlue));
-    return (100 * (ratio / (ratio + 1 )))-10;
+    return (100 * (ratio / (ratio + 1 )));
   }
 
   /// Returns the list of slopes and peak-to-peak values of `signal`, in that order.
