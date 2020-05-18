@@ -26,7 +26,7 @@ class Oximetry {
 
   /// Extinction coefficient of HbO at the red wavelength, in L / mmol / cm.
   static double eHbOxyRed =298;
-	; 	
+		
 
   /// Extinction coefficient of HbO at the green wavelength, in L / mmol / cm.
   static double eHbOxyGreen = 43016;
