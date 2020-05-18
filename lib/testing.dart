@@ -22,7 +22,7 @@ class Oximetry {
   static int lambdaGreen = 550;
 
   /// Wavelength assumed for the blue channel, in nm.
-  static int lambdaBlue = 468;
+  static int lambdaBlue = 466;
 
   /// Extinction coefficient of HbO at the red wavelength, in L / mmol / cm.
   static double eHbOxyRed = 302.8		; 	
@@ -31,7 +31,7 @@ class Oximetry {
   static double eHbOxyGreen = 43016;
 
   /// Extinction coefficient of HbO at the blue wavelength, in L / mmol / cm.
-  static double eHbOxyBlue = 34870.8		;
+  static double eHbOxyBlue = 37073.2		;
 
   /// Extinction coefficient of Hb at the red wavelength, in L / mmol / cm.
   static double eHbRed = 2967.68	;
@@ -40,7 +40,7 @@ class Oximetry {
   static double eHbGreen = 53412;
 
   /// Extinction coefficient of Hb at the blue wavelength, in L / mmol / cm.
-  static double eHbBlue = 17025.6;
+  static double eHbBlue =	18142.4;
 
   /// Returns the SpO2 value of calculated from the [PPG] signals `signalRed` and `signalBlue`.
   ///
