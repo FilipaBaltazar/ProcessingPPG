@@ -16,7 +16,7 @@ class SensorValue {
 
 class Oximetry {
   /// Wavelength assumed for the red channel, in nm.
-  static int lambdaRed = 668; //Used to be 612
+  static int lambdaRed = 666; //Used to be 612
 
   /// Wavelength assumed for the green channel, in nm.
   static int lambdaGreen = 550;
@@ -25,7 +25,7 @@ class Oximetry {
   static int lambdaBlue = 468;
 
   /// Extinction coefficient of HbO at the red wavelength, in L / mmol / cm.
-  static double eHbOxyRed = 298; 	
+  static double eHbOxyRed = 302.8	; 	
 
   /// Extinction coefficient of HbO at the green wavelength, in L / mmol / cm.
   static double eHbOxyGreen = 43016;
@@ -34,7 +34,7 @@ class Oximetry {
   static double eHbOxyBlue = 34870.8;
 
   /// Extinction coefficient of Hb at the red wavelength, in L / mmol / cm.
-  static double eHbRed = 2881.4;
+  static double eHbRed = 2967.68;
 
   /// Extinction coefficient of Hb at the green wavelength, in L / mmol / cm.
   static double eHbGreen = 53412;
