@@ -45,17 +45,17 @@ class Oximetry {
   /// Returns the SpO2 value of calculated from the [PPG] signals `signalRed` and `signalBlue`.
   ///
   /// The value is calculated using the method described by Reddy et al. (2009).
-  static double value(PPG signalRed, PPG signalBlue) {
+  static double value(PPG signalRed, PPG signalGreen) {
     var paramsRed = signalParams(signalRed, blueQ: false);
     var slopeRed = median(paramsRed[0]);
     var peakRed = median(paramsRed[1]);
-    var paramsBlue = signalParams(signalBlue);
-    var slopeBlue = median(paramsBlue[0]);
-    var peakBlue = median(paramsBlue[1]);
-    var ratio = (eHbRed * sqrt(slopeBlue * peakBlue) - eHbBlue * sqrt(slopeRed * peakRed)) /
-        (eHbOxyBlue * sqrt(slopeRed * peakRed) - eHbOxyRed * sqrt(slopeBlue * peakBlue));
-    // var ratio = (eHbRed * (peakBlue) - eHbBlue * (peakRed)) /
-    //     (eHbOxyBlue * (peakRed) - eHbOxyRed * (peakBlue));
+    var paramsGreen = signalParams(signalGreen);
+    var slopeGreen = median(paramsGreen[0]);
+    var peakGreen = median(paramsGreen[1]);
+    var ratio = (eHbRed * sqrt(slopeGreen * peakGreen) - eHbGreen * sqrt(slopeRed * peakRed)) /
+        (eHbOxyGreen * sqrt(slopeRed * peakRed) - eHbOxyRed * sqrt(slopeGreen * peakGreen));
+    // var ratio = (eHbRed * (peakGreen) - eHbGreen * (peakRed)) /
+    //     (eHbOxyGreen * (peakRed) - eHbOxyRed * (peakGreen));
     return 100 * (ratio / (ratio + 1 ));
   }
 
