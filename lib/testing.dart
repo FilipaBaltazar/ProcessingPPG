@@ -52,10 +52,10 @@ class Oximetry {
     var paramsBlue = signalParams(signalBlue);
     var slopeBlue = median(paramsBlue[0]);
     var peakBlue = median(paramsBlue[1]);
-    // var ratio = (eHbRed * sqrt(slopeBlue * peakBlue) - eHbBlue * sqrt(slopeRed * peakRed)) /
-    //     (eHbOxyBlue * sqrt(slopeRed * peakRed) - eHbOxyRed * sqrt(slopeBlue * peakBlue));
-    var ratio = (eHbRed * (peakBlue) - eHbBlue * (peakRed)) /
-        (eHbOxyBlue * (peakRed) - eHbOxyRed * (peakBlue));
+    var ratio = (eHbRed * sqrt(slopeBlue * peakBlue) - eHbBlue * sqrt(slopeRed * peakRed)) /
+        (eHbOxyBlue * sqrt(slopeRed * peakRed) - eHbOxyRed * sqrt(slopeBlue * peakBlue));
+    // var ratio = (eHbRed * (peakBlue) - eHbBlue * (peakRed)) /
+    //     (eHbOxyBlue * (peakRed) - eHbOxyRed * (peakBlue));
     return 100 * (ratio / (ratio + 1 ));
   }
 
@@ -92,8 +92,10 @@ class Oximetry {
         var valueHigh = signal.valuesLog[indHigh];
         // value of negative peak
         var valueLow = signal.valuesLog[indLow];
-        var peak2peak = blueQ ? valueHigh - valueLow : valueHighPrev - valueLow;
-        var deltaT = blueQ ? timeHigh - timeLow : timeLow - timeHighPrev;
+        // var peak2peak = blueQ ? valueHigh - valueLow : valueHighPrev - valueLow;
+        // var deltaT = blueQ ? timeHigh - timeLow : timeLow - timeHighPrev;
+        var peak2peak =  valueHighPrev - valueLow;
+        var deltaT =  timeLow - timeHighPrev;
         var slope = peak2peak / deltaT * 1000;
         peak2peaks.add(peak2peak);
         slopes.add(slope);
