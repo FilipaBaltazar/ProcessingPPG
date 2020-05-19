@@ -374,16 +374,16 @@ class PPG {
   }
 
   List<BasisFunction> get interpolationPeaks {
-    if (_interpolationPeaks.length < peaks.length) {
+    if (_interpolationPeaks.length < peaks['values'].length) {
       _fillBasisFunctions(_interpolationPeaks, peaks['times'], peaks['values']);
     }
     return _interpolationPeaks;
   }
 
   List<BasisFunction> get interpolationValleys {
-    if (_interpolationValleys.length < valleys.length) {
+    if (_interpolationValleys.length < valleys['values'].length) {
       _fillBasisFunctions(
-          _interpolationPeaks, valleys['times'], valleys['values']);
+          _interpolationValleys, valleys['times'], valleys['values']);
     }
     return _interpolationValleys;
   }
@@ -406,12 +406,13 @@ class PPG {
 
   /// Returns the timepoints in [millisInterp] covered by both envelopes.
   Array get millisEnvelopes {
-    return millisInterp.getRangeArray(firstIndexEnvelopes, lastIndexEnvelopes);
+    return millisInterp.getRangeArray(
+        firstIndexEnvelopes, lastIndexEnvelopes + 1);
   }
 
   /// Returns the mean envelope of [valuesFiltered].
-  /// 
-  /// This array is only defined in the region covered by both the top and bottom envelopes, 
+  ///
+  /// This array is only defined in the region covered by both the top and bottom envelopes,
   /// which is the region covered by both the peaks and valleys.
   Array get valuesMeanEnvelope {
     while (_valuesMeanEnvelope.length < lengthEnvelopes) {
@@ -420,22 +421,22 @@ class PPG {
       var valuesUpper = interpolate(interpolationPeaks, times);
       var valuesLower = interpolate(interpolationValleys, times);
       for (var i = 0; i < valuesUpper.length; i++) {
-        _valuesInterp.add(valuesUpper[i] - valuesLower[i]);
+        _valuesMeanEnvelope.add(valuesUpper[i] - valuesLower[i]);
       }
     }
     return _valuesMeanEnvelope;
   }
 
   /// Returns the difference between [valuesFiltered] and [valuesMeanEnvelope].
-  /// 
-  /// This array is only defined in the region covered by both the top and bottom envelopes, 
+  ///
+  /// This array is only defined in the region covered by both the top and bottom envelopes,
   /// which is the region covered by both the peaks and valleys.
   Array get valuesProcessed {
     while (_valuesProcessed.length < lengthEnvelopes) {
       var newIndex = _valuesProcessed.length;
       // add the next entry
-      _valuesProcessed
-          .add(valuesFiltered[newIndex+firstIndexEnvelopes] - valuesMeanEnvelope[newIndex]);
+      _valuesProcessed.add(valuesFiltered[newIndex + firstIndexEnvelopes] -
+          valuesMeanEnvelope[newIndex]);
     }
     return _valuesProcessed;
   }
