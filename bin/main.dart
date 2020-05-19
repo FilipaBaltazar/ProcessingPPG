@@ -42,6 +42,8 @@ void main(List<String> arguments) {
     // print(last.difference(start).inMilliseconds);  
   }
 
+  print(findPeaks(Array([1,2,3]))[0]);
+
   print(ppg.pulseRate);
   //print(ppg.valuesProcessed);
 }
