@@ -1,6 +1,23 @@
 import 'package:testing/testing.dart';
 import 'package:scidart/numdart.dart';
 import 'package:scidart/scidart.dart';
+import 'dart:math';
+
+
+class TestPLL {
+static final Array _theta = Array.fixed(1000, initialValue: 0);
+static final double phi = pi/12;
+static final Array __p = Array([1, 2*cos(phi)-1]);
+
+static Array get _p {
+  while (__p.length < _theta.length) {
+    var n = __p.length;
+    __p.add(2*cos(_theta[n]+phi)*__p[n-1] - __p[n-2]);
+  }
+  return __p;
+}
+
+}
 
 
 void main(List<String> arguments) {
@@ -58,10 +75,13 @@ void main(List<String> arguments) {
   // print(ppg.pulseRate);
   // print(ppg.valuesProcessed);
 
-  print(test.pulseRate.toString());
-  print(test.valuesProcessed);
+  // print(test.pulseRate.toString());
+  // print(test.valuesProcessed);
 
   // print(ppg.valuesInterp.length);
 
   // print(ppg.valuesInterp.length);
+
+  print(TestPLL._p);
+
 }
