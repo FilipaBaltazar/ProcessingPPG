@@ -293,7 +293,9 @@ class PPG {
   /// the previous and next value are smaller or equal to it.
   Map get peaks {
     while (_peaks['lastIndex'] < valuesFiltered.length - 1) {
-      // only check parts you haven't checked yet
+      // only check parts you haven't checked yet.
+      // we have to check starting from the index before the last, 
+      // because if not we can't tell if the last index was a peak
       int firstIndex = max(0, _peaks['lastIndex'] - 1);
       var aux = findPeaks(
           valuesFiltered.getRangeArray(firstIndex, valuesFiltered.length));
@@ -314,7 +316,9 @@ class PPG {
   /// the previous and next value are greater or equal to it.
   Map get valleys {
     while (_valleys['lastIndex'] < valuesFiltered.length - 1) {
-      // only check parts you haven't checked yet
+      // only check parts you haven't checked yet.
+      // we have to check starting from the index before the last, 
+      // because if not we can't tell if the last index was a valley
       int firstIndex = max(0, _valleys['lastIndex'] - 1);
       var aux = findValleys(
           valuesFiltered.getRangeArray(firstIndex, valuesFiltered.length));
@@ -331,7 +335,7 @@ class PPG {
 
   /// Returns the pulse rate calculated from [valuesFiltered].
   double get pulseRate {
-    if (true) {
+    if (peaks['values'].length > 1) {
       // print('peaks');
       //var indices = peaks[0];
       // print('Filtered values');
@@ -390,24 +394,40 @@ class PPG {
 
   /// Returns the first index of [valuesFiltered] that is covered by both envelopes.
   int get firstIndexEnvelopes {
-    return max(peaks['indices'].first, valleys['indices'].first);
+    if (!peaks['indices'].isEmpty && !valleys['indices'].isEmpty) {
+      return max(peaks['indices'].first, valleys['indices'].first);
+    } else {
+      return null;
+    }
   }
 
   /// Returns the last index of [valuesFiltered] that is covered by both envelopes.
   int get lastIndexEnvelopes {
-    return min(peaks['indices'].last, valleys['indices'].last);
+    if (!peaks['indices'].isEmpty && !valleys['indices'].isEmpty) {
+      return min(peaks['indices'].last, valleys['indices'].last);
+    } else {
+      return null;
+    }
   }
 
   /// Returns the length of [valuesMeanEnvelope], which is only defined
   /// in the region covered by both envelopes.
   int get lengthEnvelopes {
-    return lastIndexEnvelopes - firstIndexEnvelopes + 1;
+    if (lastIndexEnvelopes != null) {
+      return lastIndexEnvelopes - firstIndexEnvelopes + 1;
+    } else {
+      return 0;
+    }
   }
 
   /// Returns the timepoints in [millisInterp] covered by both envelopes.
   Array get millisEnvelopes {
-    return millisInterp.getRangeArray(
-        firstIndexEnvelopes, lastIndexEnvelopes + 1);
+    if (lengthEnvelopes == 0) {
+      return Array.empty();
+    } else {
+      return millisInterp.getRangeArray(
+          firstIndexEnvelopes, lastIndexEnvelopes + 1);
+    }
   }
 
   /// Returns the mean envelope of [valuesFiltered].
@@ -491,6 +511,8 @@ class PPG {
         'The first time must be greater than the middle time of the first basis function.');
     assert(times.last <= basisFunctions.last.midTime,
         'The last time must be smaller than the middle time of the last basis function.');
+
+    if (basisFunctions.length == 1) return Array([basisFunctions.first.midTimeValue]);
 
     // find the index of the first basis function
     // whose middle time is smaller than the first entry of `times`

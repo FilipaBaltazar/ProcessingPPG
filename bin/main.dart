@@ -44,8 +44,22 @@ void main(List<String> arguments) {
 
   //print(findPeaks(Array([1,2,3]))[0]);
 
-  print(ppg.pulseRate);
-  print(ppg.valuesProcessed);
+  PPG test = PPG(25);
+
+  var timesNew = [0, 1, 2, 3, 4, 5, 6, 7];
+  var valuesNew = <double>[3.5, 3, 2.5, 2, 1.5, 1, .5];
+  last = DateTime.now();
+  for (var i = 0; i <  valuesNew.length; i++) {
+    last = start.add(Duration(milliseconds:(timesNew.elementAt(i)*1000).round()));
+    test.add(last, valuesNew.elementAt(i)); 
+  }
+
+
+  // print(ppg.pulseRate);
+  // print(ppg.valuesProcessed);
+
+  print(test.pulseRate.toString());
+  print(test.valuesProcessed);
 
   // print(ppg.valuesInterp.length);
 
