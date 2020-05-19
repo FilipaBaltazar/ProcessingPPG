@@ -122,10 +122,10 @@ class PPG {
   final Array _valuesInterp = Array.empty();
 
   /// Filter frequencies in BPM.
-  final List<int> frequencies = List.generate(141, (index) => index + 40);
+  final List<int> frequencies = List.generate(101, (index) => index + 40);
   final List<Array> _signalsFiltered =
-      List.generate(141, (index) => Array.empty());
-  final List<double> _energies = List.generate(141, (index) => 0.0);
+      List.generate(101, (index) => Array.empty());
+  final List<Complex> _energies = List.generate(101, (index) => Complex());
   int _energiesLastIndex = -1;
 
   final Array _valuesFiltered = Array.empty();
@@ -258,21 +258,21 @@ class PPG {
   }
 
   /// Returns a list of passband filtered versions of [valuesInterp].
-  /// 
+  ///
   /// The signal in each entry is the result of passing [valuesInterp]
   /// through a bandpass filter with a bandwidth of 1 BPM, whose central
   /// frequency is the frequency in [frequencies] that shares the same
   /// entry as the signal.
   List<Array> get signalsFiltered {
-    for (var i = 0; i < _signalsFiltered.length; i++) {
-      while (_signalsFiltered[i].length < valuesInterp.length) {
+    while (_signalsFiltered[1].length < valuesInterp.length) {
+      for (var i = 0; i < _signalsFiltered.length; i++) {
         // I should probably save these variables
         var frequencyNyquist = 0.5 * samplingRate;
-        var bandPassWindow =
-            Array([(frequencies[i] - 0.5) / 60, (frequencies[i] + 0.5) / 60]);
+        var bandPassWindow = Array(
+            [(frequencies[i] - 0.001) / 60, (frequencies[i] + 0.001) / 60]);
         var normalBandPassWindow =
             bandPassWindow / Array([frequencyNyquist, frequencyNyquist]);
-        var filterOrder = 30;
+        var filterOrder = 300;
         var filterCoeffs =
             firwin(filterOrder, normalBandPassWindow, pass_zero: false);
 
@@ -287,10 +287,10 @@ class PPG {
         // the number of new samples to add to the filtered signal
         var numNewSamples = valuesInterp.length - _signalsFiltered[i].length;
 
-        for (var i = valuesNew.length - numNewSamples;
-            i < valuesNew.length;
-            i++) {
-          _signalsFiltered[i].add(valuesNew[i]);
+        for (var j = valuesNew.length - numNewSamples;
+            j < valuesNew.length;
+            j++) {
+          _signalsFiltered[i].add(valuesNew[j]);
         }
       }
     }
@@ -298,12 +298,17 @@ class PPG {
   }
 
   /// Returns the list of energies of the signals in [signalsFiltered].
-  List<double> get energies {
+  List<Complex> get energies {
     while (_energiesLastIndex < valuesInterp.length - 1) {
-      for (var i = 0; i < signalsFiltered.length; i++) {
-        _energies[i] = (_energies[i] * (_energiesLastIndex + 1) +
-                pow(signalsFiltered[i][_energiesLastIndex + 1], 2)) /
-            (_energiesLastIndex + 2);
+      for (var i = 0; i < _energies.length; i++) {
+        // _energies[i] = (_energies[i] * (_energiesLastIndex + 1) +
+        //         pow(signalsFiltered[i][_energiesLastIndex + 1], 2)) /
+        //     (_energiesLastIndex + 2);
+        var phase =
+            2 * pi * frequencies[i] / 60 * millisInterp[_energiesLastIndex + 1];
+        var spiralValue = Complex(real: cos(phase), imaginary: -sin(phase));
+        _energies[i] = _energies[i] +
+            spiralValue * Complex(real: _valuesInterp[_energiesLastIndex + 1]);
       }
       _energiesLastIndex++;
     }
@@ -439,7 +444,11 @@ class PPG {
   }
 
   num get pulseRate {
-    return frequencies[energies.indexWhere((value) => value == energies.reduce(max))];
+    var index = 0;
+    for (var i = 0; i < energies.length; i++) {
+      if (complexAbs(energies[index]) < complexAbs(energies[i])) index = i;
+    }
+    return frequencies[index];
   }
 
   List<BasisFunction> get interpolationPeaks {

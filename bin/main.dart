@@ -72,16 +72,18 @@ void main(List<String> arguments) {
   }
 
 
-  // print(ppg.pulseRate);
+  print(ppg.pulseRate);
+  print(ppg.energies);
   // print(ppg.valuesProcessed);
 
-  // print(test.pulseRate.toString());
+  print(test.pulseRate.toString());
+  print(ppg.energies);
   // print(test.valuesProcessed);
 
   // print(ppg.valuesInterp.length);
 
   // print(ppg.valuesInterp.length);
 
-  print(TestPLL._p);
+  //print(TestPLL._p);
 
 }
