@@ -120,6 +120,14 @@ class PPG {
   final List<BasisFunction> _interpolation = [];
   final Array _millisInterp = Array([0.0]);
   final Array _valuesInterp = Array.empty();
+
+  /// Filter frequencies in BPM.
+  final List<int> frequencies = List.generate(141, (index) => index + 40);
+  final List<Array> _signalsFiltered =
+      List.generate(141, (index) => Array.empty());
+  final List<double> _energies = List.generate(141, (index) => 0.0);
+  int _energiesLastIndex = -1;
+
   final Array _valuesFiltered = Array.empty();
   final Array _valuesLog = Array.empty();
   final Map _peaks = {
@@ -249,6 +257,59 @@ class PPG {
     return _valuesInterp;
   }
 
+  /// Returns a list of passband filtered versions of [valuesInterp].
+  /// 
+  /// The signal in each entry is the result of passing [valuesInterp]
+  /// through a bandpass filter with a bandwidth of 1 BPM, whose central
+  /// frequency is the frequency in [frequencies] that shares the same
+  /// entry as the signal.
+  List<Array> get signalsFiltered {
+    for (var i = 0; i < _signalsFiltered.length; i++) {
+      while (_signalsFiltered[i].length < valuesInterp.length) {
+        // I should probably save these variables
+        var frequencyNyquist = 0.5 * samplingRate;
+        var bandPassWindow =
+            Array([(frequencies[i] - 0.5) / 60, (frequencies[i] + 0.5) / 60]);
+        var normalBandPassWindow =
+            bandPassWindow / Array([frequencyNyquist, frequencyNyquist]);
+        var filterOrder = 30;
+        var filterCoeffs =
+            firwin(filterOrder, normalBandPassWindow, pass_zero: false);
+
+        // get the end bit of valuesInterp, plus a tail with the size of the filter order
+        var valuesNew = valuesInterp.getRangeArray(
+            max(0, _signalsFiltered[i].length - filterOrder - 1),
+            valuesInterp.length);
+
+        // filter what we took from valuesInterp
+        valuesNew = lfilter(filterCoeffs, Array([1.0]), valuesNew);
+
+        // the number of new samples to add to the filtered signal
+        var numNewSamples = valuesInterp.length - _signalsFiltered[i].length;
+
+        for (var i = valuesNew.length - numNewSamples;
+            i < valuesNew.length;
+            i++) {
+          _signalsFiltered[i].add(valuesNew[i]);
+        }
+      }
+    }
+    return _signalsFiltered;
+  }
+
+  /// Returns the list of energies of the signals in [signalsFiltered].
+  List<double> get energies {
+    while (_energiesLastIndex < valuesInterp.length - 1) {
+      for (var i = 0; i < signalsFiltered.length; i++) {
+        _energies[i] = (_energies[i] * (_energiesLastIndex + 1) +
+                pow(signalsFiltered[i][_energiesLastIndex + 1], 2)) /
+            (_energiesLastIndex + 2);
+      }
+      _energiesLastIndex++;
+    }
+    return _energies;
+  }
+
   /// Returns a filtered version of [valuesInterp].
   Array get valuesFiltered {
     while (_valuesFiltered.length < valuesInterp.length) {
@@ -294,7 +355,7 @@ class PPG {
   Map get peaks {
     while (_peaks['lastIndex'] < valuesFiltered.length - 1) {
       // only check parts you haven't checked yet.
-      // we have to check starting from the index before the last, 
+      // we have to check starting from the index befoare the last,
       // because if not we can't tell if the last index was a peak
       int firstIndex = max(0, _peaks['lastIndex'] - 1);
       var aux = findPeaks(
@@ -317,7 +378,7 @@ class PPG {
   Map get valleys {
     while (_valleys['lastIndex'] < valuesFiltered.length - 1) {
       // only check parts you haven't checked yet.
-      // we have to check starting from the index before the last, 
+      // we have to check starting from the index before the last,
       // because if not we can't tell if the last index was a valley
       int firstIndex = max(0, _valleys['lastIndex'] - 1);
       var aux = findValleys(
@@ -334,7 +395,7 @@ class PPG {
   }
 
   /// Returns the pulse rate calculated from [valuesFiltered].
-  double get pulseRate {
+  double get pulseRateOld {
     if (peaks['values'].length > 1) {
       // print('peaks');
       //var indices = peaks[0];
@@ -375,6 +436,10 @@ class PPG {
 
     }
     return _pulseRate;
+  }
+
+  num get pulseRate {
+    return frequencies[energies.indexWhere((value) => value == energies.reduce(max))];
   }
 
   List<BasisFunction> get interpolationPeaks {
@@ -512,7 +577,8 @@ class PPG {
     assert(times.last <= basisFunctions.last.midTime,
         'The last time must be smaller than the middle time of the last basis function.');
 
-    if (basisFunctions.length == 1) return Array([basisFunctions.first.midTimeValue]);
+    if (basisFunctions.length == 1)
+      return Array([basisFunctions.first.midTimeValue]);
 
     // find the index of the first basis function
     // whose middle time is smaller than the first entry of `times`
