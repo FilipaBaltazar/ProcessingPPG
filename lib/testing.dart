@@ -122,11 +122,12 @@ class PPG {
   final Array _valuesInterp = Array.empty();
 
   /// Filter frequencies in BPM.
-  final List<int> frequencies = List.generate(101, (index) => index + 40);
+  final List<int> rates = List.generate(141, (index) => index + 40);
   final List<Array> _signalsFiltered =
-      List.generate(101, (index) => Array.empty());
-  final List<Complex> _energies = List.generate(101, (index) => Complex());
-  int _energiesLastIndex = -1;
+      List.generate(141, (index) => Array.empty());
+  final List<Complex> _projections = List.generate(141, (index) => Complex());
+  final List<int> _checkedIndex = List.generate(141, (index) => -1);
+  int _maxIndex = -1;
 
   final Array _valuesFiltered = Array.empty();
   final Array _valuesLog = Array.empty();
@@ -261,7 +262,7 @@ class PPG {
   ///
   /// The signal in each entry is the result of passing [valuesInterp]
   /// through a bandpass filter with a bandwidth of 1 BPM, whose central
-  /// frequency is the frequency in [frequencies] that shares the same
+  /// frequency is the frequency in [rates] that shares the same
   /// entry as the signal.
   List<Array> get signalsFiltered {
     while (_signalsFiltered[1].length < valuesInterp.length) {
@@ -269,7 +270,7 @@ class PPG {
         // I should probably save these variables
         var frequencyNyquist = 0.5 * samplingRate;
         var bandPassWindow = Array(
-            [(frequencies[i] - 0.001) / 60, (frequencies[i] + 0.001) / 60]);
+            [(rates[i] - 0.001) / 60, (rates[i] + 0.001) / 60]);
         var normalBandPassWindow =
             bandPassWindow / Array([frequencyNyquist, frequencyNyquist]);
         var filterOrder = 300;
@@ -297,22 +298,46 @@ class PPG {
     return _signalsFiltered;
   }
 
-  /// Returns the list of energies of the signals in [signalsFiltered].
-  List<Complex> get energies {
-    while (_energiesLastIndex < valuesInterp.length - 1) {
-      for (var i = 0; i < _energies.length; i++) {
-        // _energies[i] = (_energies[i] * (_energiesLastIndex + 1) +
-        //         pow(signalsFiltered[i][_energiesLastIndex + 1], 2)) /
-        //     (_energiesLastIndex + 2);
-        var phase =
-            2 * pi * frequencies[i] / 60 * millisInterp[_energiesLastIndex + 1];
-        var spiralValue = Complex(real: cos(phase), imaginary: -sin(phase));
-        _energies[i] = _energies[i] +
-            spiralValue * Complex(real: _valuesInterp[_energiesLastIndex + 1]);
-      }
-      _energiesLastIndex++;
+  /// Returns the list of the projetions of [valuesInterp] into signals
+  /// with bandwidths of 2 BPM whose center frequencies are those
+  /// specified in [rates].
+  Array get projections {
+    var result = Array.empty();
+    for (var i = 0; i < _projections.length; i++) {
+      result.add(projection(i));
     }
-    return _energies;
+    return result;
+  }
+
+  /// Updates and returns the projection of [valuesInterp] onto the
+  /// frequency in index `i` of [rates].
+  double projection(int i) {
+    while (_checkedIndex[i] < valuesInterp.length - 1) {
+    
+      var index = _checkedIndex[i] + 1;
+      var time = millisInterp[index] / 1000;
+    
+      // the center of the window is at second 17.5
+      var center = 18.0;
+      // the width of the window is 25 seconds
+      var halfWidth = 15.0;
+      // window we apply to the signal
+      var windowValue = Complex(real: planckTaper(time, center, halfWidth, epsilon: 0.5));
+      // sinc function we apply to the signal to extract a 2 BPM frequency band
+      var sincValue = Complex(real: sinc(3 / 30 * (time-center)));
+      // phase of the complex spiral used to select the center frequency
+      var phase = pi * rates[i] / 30 * (time-center);
+      // aforementioned complex spiral
+      var spiralValue = Complex(real: cos(phase), imaginary: -sin(phase));
+    
+      // update the projection by adding the product with the next entry
+      _projections[i] = _projections[i] +
+          spiralValue * windowValue * sincValue * Complex(real: _valuesInterp[index]);
+
+      _checkedIndex[i]++;
+    }
+    
+    return complexAbs(_projections[i]);
   }
 
   /// Returns a filtered version of [valuesInterp].
@@ -444,11 +469,27 @@ class PPG {
   }
 
   num get pulseRate {
-    var index = 0;
-    for (var i = 0; i < energies.length; i++) {
-      if (complexAbs(energies[index]) < complexAbs(energies[i])) index = i;
+    var i = _startIndex;
+    while (i < _endIndex) {
+      if (_maxIndex == -1) _maxIndex = 0;
+      if (projection(_maxIndex) < projection(i)) {
+         _maxIndex = i;
+         i = _startIndex;
+      } else {
+        i++;
+      }
     }
-    return frequencies[index];
+    return _maxIndex == -1 ? null : rates[_maxIndex];
+  }
+
+  // Returns the index of the lowest frequency to check for peak energy.
+  int get _startIndex {
+    return max(0, _maxIndex - 10);
+  }
+
+  // Returns the index of the highest frequency to check for peak energy.
+  int get _endIndex {
+    return min(rates.length, _maxIndex + 10);
   }
 
   List<BasisFunction> get interpolationPeaks {
@@ -618,6 +659,7 @@ class PPG {
     return result;
   }
 
+  /// Finds the valleys of Array `a` that are smaller than `threshold`.
   static List findValleys(Array a, {double threshold}) {
     var N = a.length - 2;
     Array ix = Array.empty();
@@ -639,6 +681,36 @@ class PPG {
       }
     }
     return [ix, ax];
+  }
+
+  static double sinc(double x) {
+    return x == 0 ? 1 : sin(pi * x) / (pi * x);
+  }
+
+  static double turkey(double x, double mean, double halfWidth, {double alpha = 0.5}) {
+    var z = (x - mean + halfWidth) / (2 * halfWidth);
+    if (z < 0) {
+      return 0;
+    } else if (z < alpha * 1 / 2) {
+      return 0.5 * (1 - cos(2 * pi * z / alpha));
+    } else if (z < 1 / 2) {
+      return 1;
+    } else {
+      return turkey(2 * mean - x, mean, halfWidth);
+    }
+  }
+
+  static double planckTaper(double x, double mean, double halfWidth, {double epsilon = 0.5}) {
+    var z = (x - mean + halfWidth) / (2 * halfWidth);
+    if (z <= 0) {
+      return 0;
+    } else if (z < epsilon) {
+      return 1 / (1 + exp(epsilon / z - epsilon / (epsilon - z)));
+    } else if (z <= 1 / 2) {
+      return 1;
+    } else {
+      return planckTaper(2 * mean - x, mean, halfWidth);
+    }
   }
 }
 
