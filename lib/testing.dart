@@ -25,22 +25,22 @@ class Oximetry {
   static int lambdaBlue = 466;
 
   /// Extinction coefficient of HbO at the red wavelength, in L / mmol / cm.
-  static double eHbOxyRed =294;
+  static double eHbOxyRed = 294;
 
   /// Extinction coefficient of HbO at the green wavelength, in L / mmol / cm.
   static double eHbOxyGreen = 43016;
 
   /// Extinction coefficient of HbO at the blue wavelength, in L / mmol / cm.
-  static double eHbOxyBlue = 37073.2	;
+  static double eHbOxyBlue = 37073.2;
 
   /// Extinction coefficient of Hb at the red wavelength, in L / mmol / cm.
-  static double eHbRed =2795.12;
+  static double eHbRed = 2795.12;
 
   /// Extinction coefficient of Hb at the green wavelength, in L / mmol / cm.
   static double eHbGreen = 53412;
 
   /// Extinction coefficient of Hb at the blue wavelength, in L / mmol / cm.
-  static double eHbBlue =	18142.4;
+  static double eHbBlue = 18142.4;
 
   /// Returns the SpO2 value of calculated from the [PPG] signals `signalRed` and `signalBlue`.
   ///
@@ -128,6 +128,14 @@ class PPG {
   final List<Complex> _projections = List.generate(141, (index) => Complex());
   final List<int> _checkedIndex = List.generate(141, (index) => -1);
   int _maxIndex = -1;
+
+  final double windowEdge = 7.5;
+  final double windowStart = 5;
+  final double windowWidth = 30.0;
+  final List<Complex> _projectionsConserved =
+      List.generate(141, (index) => Complex());
+  final List<Complex> _projectionsBuffer =
+      List.generate(141, (index) => Complex());
 
   final Array _valuesFiltered = Array.empty();
   final Array _valuesLog = Array.empty();
@@ -269,8 +277,8 @@ class PPG {
       for (var i = 0; i < _signalsFiltered.length; i++) {
         // I should probably save these variables
         var frequencyNyquist = 0.5 * samplingRate;
-        var bandPassWindow = Array(
-            [(rates[i] - 0.001) / 60, (rates[i] + 0.001) / 60]);
+        var bandPassWindow =
+            Array([(rates[i] - 0.001) / 60, (rates[i] + 0.001) / 60]);
         var normalBandPassWindow =
             bandPassWindow / Array([frequencyNyquist, frequencyNyquist]);
         var filterOrder = 300;
@@ -309,35 +317,81 @@ class PPG {
     return result;
   }
 
-  /// Updates and returns the projection of [valuesInterp] onto the
-  /// frequency in index `i` of [rates].
-  double projection(int i) {
-    while (_checkedIndex[i] < valuesInterp.length - 1) {
-    
-      var index = _checkedIndex[i] + 1;
-      var time = millisInterp[index] / 1000;
-    
-      // the center of the window is at second 17.5
-      var center = 18.0;
-      // the width of the window is 25 seconds
-      var halfWidth = 15.0;
-      // window we apply to the signal
-      var windowValue = Complex(real: planckTaper(time, center, halfWidth, epsilon: 0.5));
-      // sinc function we apply to the signal to extract a 2 BPM frequency band
-      var sincValue = Complex(real: sinc(3 / 30 * (time-center)));
-      // phase of the complex spiral used to select the center frequency
-      var phase = pi * rates[i] / 30 * (time-center);
-      // aforementioned complex spiral
-      var spiralValue = Complex(real: cos(phase), imaginary: -sin(phase));
-    
-      // update the projection by adding the product with the next entry
-      _projections[i] = _projections[i] +
-          spiralValue * windowValue * sincValue * Complex(real: _valuesInterp[index]);
+  double get reflectionPoint {
+    return min(windowCenter, (millisInterp.last / 1000  + windowStart) / 2);
+  }
 
-      _checkedIndex[i]++;
+  double get windowCenter {
+    return windowStart + windowWidth/2;
+  }
+
+  double get windowEnd {
+    return windowStart + windowWidth;
+  }
+
+  int get windowEdgeLength {
+    return (windowEdge * samplingRate).floor();
+  }
+
+  int get windowStartIndex {
+    return (windowStart * samplingRate).floor();
+  }
+
+  int get windowEndIndex {
+    return (windowEnd * samplingRate).ceil();
+  }
+
+  int conservedIndex(int i) {
+    if (i > windowEndIndex) {
+      return i;
+    } else if (i >= windowStartIndex + 2 * windowEdgeLength) {
+      return i - 1 - windowEdgeLength;
+    } else {
+      return max(-1, ((windowStartIndex + i) / 2).floor());
     }
-    
-    return complexAbs(_projections[i]);
+  }
+
+  /// Updates and returns the projection of [valuesInterp] onto the
+  /// frequency in index `rateNum` of [rates].
+  double projection(int rateNum) {
+    if (_checkedIndex[rateNum] < valuesInterp.length - 1) {
+      var newestIndex = valuesInterp.length-1;
+      var oldIndex = _checkedIndex[rateNum];
+      // update projectionsConserved
+      for (var index = conservedIndex(oldIndex)+1; index < conservedIndex(newestIndex)+1; index++) {      
+        updateProjection(index, rateNum, _projectionsConserved);
+      }
+      // clear projectionsBuffer
+      _projectionsBuffer[rateNum] = Complex();
+      // update projectionsBuffer
+      for (var index = conservedIndex(newestIndex)+1; index < newestIndex+1; index++) {      
+        updateProjection(index, rateNum, _projectionsBuffer);
+      }
+      // update projections
+      _projections[rateNum] = _projectionsConserved[rateNum] + _projectionsBuffer[rateNum];
+      // update checkedIndex
+      _checkedIndex[rateNum] = newestIndex;
+    }
+
+    return complexAbs(_projections[rateNum]);
+  }
+
+  void updateProjection(int index, int rateNum, List<Complex> projections) {
+    var time = millisInterp[index] / 1000;
+    // window we apply to the signal
+    var windowValue = Complex(real: window(time));
+    // sinc function we apply to the signal to extract a 2 BPM frequency band
+    var sincValue = Complex(real: sinc(1 / 30 * (time - windowCenter)));
+    // phase of the complex spiral used to select the center frequency
+    var phase = pi * rates[rateNum] / 30 * (time - windowCenter);
+    // aforementioned complex spiral
+    var spiralValue = Complex(real: cos(phase), imaginary: -sin(phase));
+    // update the projection by adding the product with the next entry
+    projections[rateNum] = projections[rateNum] +
+        spiralValue *
+            windowValue *
+            sincValue *
+            Complex(real: valuesInterp[index]);
   }
 
   /// Returns a filtered version of [valuesInterp].
@@ -473,8 +527,8 @@ class PPG {
     while (i < _endIndex) {
       if (_maxIndex == -1) _maxIndex = 0;
       if (projection(_maxIndex) < projection(i)) {
-         _maxIndex = i;
-         i = _startIndex;
+        _maxIndex = i;
+        i = _startIndex;
       } else {
         i++;
       }
@@ -484,12 +538,12 @@ class PPG {
 
   // Returns the index of the lowest frequency to check for peak energy.
   int get _startIndex {
-    return max(0, _maxIndex - 10);
+    return max(0, _maxIndex - 100);
   }
 
   // Returns the index of the highest frequency to check for peak energy.
   int get _endIndex {
-    return min(rates.length, _maxIndex + 10);
+    return min(rates.length, _maxIndex + 100);
   }
 
   List<BasisFunction> get interpolationPeaks {
@@ -683,24 +737,38 @@ class PPG {
     return [ix, ax];
   }
 
+  double window(double t) {
+    var mean = windowCenter;
+    var halfWidth = windowWidth / 2;
+    var eps = windowEdge / halfWidth;
+    if (t <= reflectionPoint) {
+      return turkey(t, mean, halfWidth, alpha: eps);
+    } else {
+      return turkey(2 * reflectionPoint - t, mean, halfWidth,
+          alpha: eps);
+    }
+  }
+
   static double sinc(double x) {
     return x == 0 ? 1 : sin(pi * x) / (pi * x);
   }
 
-  static double turkey(double x, double mean, double halfWidth, {double alpha = 0.5}) {
+  static double turkey(double x, double mean, double halfWidth,
+      {double alpha = 0.5}) {
     var z = (x - mean + halfWidth) / (2 * halfWidth);
     if (z < 0) {
       return 0;
     } else if (z < alpha * 1 / 2) {
       return 0.5 * (1 - cos(2 * pi * z / alpha));
-    } else if (z < 1 / 2) {
+    } else if (z <= 1 / 2) {
       return 1;
     } else {
       return turkey(2 * mean - x, mean, halfWidth);
     }
   }
 
-  static double planckTaper(double x, double mean, double halfWidth, {double epsilon = 0.5}) {
+  static double planckTaper(double x, double mean, double halfWidth,
+      {double epsilon = 0.5}) {
     var z = (x - mean + halfWidth) / (2 * halfWidth);
     if (z <= 0) {
       return 0;

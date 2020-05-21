@@ -48,7 +48,7 @@ void main(List<String> arguments) {
   var last = DateTime.now();
   var start= last;
 
-  PPG ppg = PPG(60);
+  PPG ppg = PPG(25);
 
 
   for (var i = 0; i < pipa_heart.length; i++) {
@@ -71,6 +71,10 @@ void main(List<String> arguments) {
   //   test.add(last, valuesNew.elementAt(i)); 
   // }
 
+
+  print(Array(List.generate(ppg.millisInterp.length, (index) => ppg.window(ppg.millisInterp[index]/1000))));
+  // print(ppg.reflectionPoint);
+  // print(ppg.conservedIndex(ppg.millisInterp.length-1)/ppg.samplingRate);
 
   print(ppg.pulseRate);
   //print(ppg.projections);
