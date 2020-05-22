@@ -620,7 +620,7 @@ class PPG {
       var valuesUpper = interpolate(interpolationPeaks, times);
       var valuesLower = interpolate(interpolationValleys, times);
       for (var i = 0; i < valuesUpper.length; i++) {
-        _valuesMeanEnvelope.add(valuesUpper[i] - valuesLower[i]);
+        _valuesMeanEnvelope.add((valuesUpper[i] + valuesLower[i]) / 2);
       }
     }
     return _valuesMeanEnvelope;
