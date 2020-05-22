@@ -318,11 +318,11 @@ class PPG {
   }
 
   double get reflectionPoint {
-    return min(windowCenter, (millisInterp.last / 1000  + windowStart) / 2);
+    return min(windowCenter, (millisInterp.last / 1000 + windowStart) / 2);
   }
 
   double get windowCenter {
-    return windowStart + windowWidth/2;
+    return windowStart + windowWidth / 2;
   }
 
   double get windowEnd {
@@ -341,6 +341,10 @@ class PPG {
     return (windowEnd * samplingRate).ceil();
   }
 
+  int get windowLength {
+    return windowEndIndex + 1 - windowStartIndex;
+  }
+
   int conservedIndex(int i) {
     if (i > windowEndIndex) {
       return i;
@@ -355,25 +359,31 @@ class PPG {
   /// frequency in index `rateNum` of [rates].
   double projection(int rateNum) {
     if (_checkedIndex[rateNum] < valuesInterp.length - 1) {
-      var newestIndex = valuesInterp.length-1;
+      var newestIndex = valuesInterp.length - 1;
       var oldIndex = _checkedIndex[rateNum];
       // update projectionsConserved
-      for (var index = conservedIndex(oldIndex)+1; index < conservedIndex(newestIndex)+1; index++) {      
+      for (var index = conservedIndex(oldIndex) + 1;
+          index < conservedIndex(newestIndex) + 1;
+          index++) {
         updateProjection(index, rateNum, _projectionsConserved);
       }
       // clear projectionsBuffer
       _projectionsBuffer[rateNum] = Complex();
       // update projectionsBuffer
-      for (var index = conservedIndex(newestIndex)+1; index < newestIndex+1; index++) {      
+      for (var index = conservedIndex(newestIndex) + 1;
+          index < newestIndex + 1;
+          index++) {
         updateProjection(index, rateNum, _projectionsBuffer);
       }
       // update projections
-      _projections[rateNum] = _projectionsConserved[rateNum] + _projectionsBuffer[rateNum];
+      _projections[rateNum] =
+          _projectionsConserved[rateNum] + _projectionsBuffer[rateNum];
       // update checkedIndex
       _checkedIndex[rateNum] = newestIndex;
     }
-
-    return complexAbs(_projections[rateNum]);
+    return (_projections[rateNum] * complexConjugate(_projections[rateNum]))
+            .real /
+        (valuesInterp.length - windowStartIndex);
   }
 
   void updateProjection(int index, int rateNum, List<Complex> projections) {
@@ -479,7 +489,7 @@ class PPG {
   }
 
   /// Returns the pulse rate calculated from [valuesFiltered].
-  double get pulseRateOld {
+  double get pulseRate {
     if (peaks['values'].length > 1) {
       // print('peaks');
       //var indices = peaks[0];
@@ -522,7 +532,7 @@ class PPG {
     return _pulseRate;
   }
 
-  num get pulseRate {
+  num get pulseRateNew {
     var i = _startIndex;
     while (i < _endIndex) {
       if (_maxIndex == -1) _maxIndex = 0;
@@ -744,8 +754,7 @@ class PPG {
     if (t <= reflectionPoint) {
       return turkey(t, mean, halfWidth, alpha: eps);
     } else {
-      return turkey(2 * reflectionPoint - t, mean, halfWidth,
-          alpha: eps);
+      return turkey(2 * reflectionPoint - t, mean, halfWidth, alpha: eps);
     }
   }
 
