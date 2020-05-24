@@ -120,23 +120,6 @@ class PPG {
   final List<BasisFunction> _interpolation = [];
   final Array _millisInterp = Array([0.0]);
   final Array _valuesInterp = Array.empty();
-
-  /// Filter frequencies in BPM.
-  final List<int> rates = List.generate(141, (index) => index + 40);
-  final List<Array> _signalsFiltered =
-      List.generate(141, (index) => Array.empty());
-  final List<Complex> _projections = List.generate(141, (index) => Complex());
-  final List<int> _checkedIndex = List.generate(141, (index) => -1);
-  int _maxIndex = -1;
-
-  final double windowEdge = 7.5;
-  final double windowStart = 5;
-  final double windowWidth = 30.0;
-  final List<Complex> _projectionsConserved =
-      List.generate(141, (index) => Complex());
-  final List<Complex> _projectionsBuffer =
-      List.generate(141, (index) => Complex());
-
   final Array _valuesFiltered = Array.empty();
   final Array _valuesLog = Array.empty();
   final Map _peaks = {
@@ -166,7 +149,7 @@ class PPG {
 
   /// High frequency cut-off of the band-pass filter applied to
   /// [valuesInterp] before obtaining [valuesFiltered].
-  double frequencyHigh = 2;
+  double frequencyHigh = 3;
 
   /// Low frequency cut-off of the band-pass filter applied to
   /// [valuesInterp] before obtaining [valuesFiltered].
@@ -266,144 +249,6 @@ class PPG {
     return _valuesInterp;
   }
 
-  /// Returns a list of passband filtered versions of [valuesInterp].
-  ///
-  /// The signal in each entry is the result of passing [valuesInterp]
-  /// through a bandpass filter with a bandwidth of 1 BPM, whose central
-  /// frequency is the frequency in [rates] that shares the same
-  /// entry as the signal.
-  List<Array> get signalsFiltered {
-    while (_signalsFiltered[1].length < valuesInterp.length) {
-      for (var i = 0; i < _signalsFiltered.length; i++) {
-        // I should probably save these variables
-        var frequencyNyquist = 0.5 * samplingRate;
-        var bandPassWindow =
-            Array([(rates[i] - 0.001) / 60, (rates[i] + 0.001) / 60]);
-        var normalBandPassWindow =
-            bandPassWindow / Array([frequencyNyquist, frequencyNyquist]);
-        var filterOrder = 300;
-        var filterCoeffs =
-            firwin(filterOrder, normalBandPassWindow, pass_zero: false);
-
-        // get the end bit of valuesInterp, plus a tail with the size of the filter order
-        var valuesNew = valuesInterp.getRangeArray(
-            max(0, _signalsFiltered[i].length - filterOrder - 1),
-            valuesInterp.length);
-
-        // filter what we took from valuesInterp
-        valuesNew = lfilter(filterCoeffs, Array([1.0]), valuesNew);
-
-        // the number of new samples to add to the filtered signal
-        var numNewSamples = valuesInterp.length - _signalsFiltered[i].length;
-
-        for (var j = valuesNew.length - numNewSamples;
-            j < valuesNew.length;
-            j++) {
-          _signalsFiltered[i].add(valuesNew[j]);
-        }
-      }
-    }
-    return _signalsFiltered;
-  }
-
-  /// Returns the list of the projetions of [valuesInterp] into signals
-  /// with bandwidths of 2 BPM whose center frequencies are those
-  /// specified in [rates].
-  Array get projections {
-    var result = Array.empty();
-    for (var i = 0; i < _projections.length; i++) {
-      result.add(projection(i));
-    }
-    return result;
-  }
-
-  double get reflectionPoint {
-    return min(windowCenter, (millisInterp.last / 1000 + windowStart) / 2);
-  }
-
-  double get windowCenter {
-    return windowStart + windowWidth / 2;
-  }
-
-  double get windowEnd {
-    return windowStart + windowWidth;
-  }
-
-  int get windowEdgeLength {
-    return (windowEdge * samplingRate).floor();
-  }
-
-  int get windowStartIndex {
-    return (windowStart * samplingRate).floor();
-  }
-
-  int get windowEndIndex {
-    return (windowEnd * samplingRate).ceil();
-  }
-
-  int get windowLength {
-    return windowEndIndex + 1 - windowStartIndex;
-  }
-
-  int conservedIndex(int i) {
-    if (i > windowEndIndex) {
-      return i;
-    } else if (i >= windowStartIndex + 2 * windowEdgeLength) {
-      return i - 1 - windowEdgeLength;
-    } else {
-      return max(-1, ((windowStartIndex + i) / 2).floor());
-    }
-  }
-
-  /// Updates and returns the projection of [valuesInterp] onto the
-  /// frequency in index `rateNum` of [rates].
-  double projection(int rateNum) {
-    if (_checkedIndex[rateNum] < valuesInterp.length - 1) {
-      var newestIndex = valuesInterp.length - 1;
-      var oldIndex = _checkedIndex[rateNum];
-      // update projectionsConserved
-      for (var index = conservedIndex(oldIndex) + 1;
-          index < conservedIndex(newestIndex) + 1;
-          index++) {
-        updateProjection(index, rateNum, _projectionsConserved);
-      }
-      // clear projectionsBuffer
-      _projectionsBuffer[rateNum] = Complex();
-      // update projectionsBuffer
-      for (var index = conservedIndex(newestIndex) + 1;
-          index < newestIndex + 1;
-          index++) {
-        updateProjection(index, rateNum, _projectionsBuffer);
-      }
-      // update projections
-      _projections[rateNum] =
-          _projectionsConserved[rateNum] + _projectionsBuffer[rateNum];
-      // update checkedIndex
-      _checkedIndex[rateNum] = newestIndex;
-    }
-    return (_projections[rateNum] * complexConjugate(_projections[rateNum]))
-            .real /
-        (valuesInterp.length - windowStartIndex);
-  }
-
-  void updateProjection(int index, int rateNum, List<Complex> projections) {
-    var time = millisInterp[index] / 1000;
-    // window we apply to the signal
-    var windowValue = Complex(real: window(time));
-    // sinc function we apply to the signal to extract a 2 BPM frequency band
-    var sincValue = Complex(real: sinc(1 / 30 * (time - windowCenter)));
-    // phase of the complex spiral used to select the center frequency
-    var phase = pi * rates[rateNum] / 30 * (time - windowCenter);
-    // aforementioned complex spiral
-    var spiralValue = Complex(real: cos(phase), imaginary: -sin(phase));
-    // update the projection by adding the product with the next entry
-    projections[rateNum] = projections[rateNum] +
-        spiralValue *
-            windowValue *
-            sincValue *
-            Complex(real: valuesInterp[index]);
-  }
-
   /// Returns a filtered version of [valuesInterp].
   Array get valuesFiltered {
     while (_valuesFiltered.length < valuesInterp.length) {
@@ -412,7 +257,7 @@ class PPG {
       var bandPassWindow = Array([frequencyLow, frequencyHigh]);
       var normalBandPassWindow =
           bandPassWindow / Array([frequencyNyquist, frequencyNyquist]);
-      var filterOrder = 30;
+      var filterOrder = 100;
       var filterCoeffs =
           firwin(filterOrder, normalBandPassWindow, pass_zero: false);
 
@@ -530,30 +375,6 @@ class PPG {
 
     }
     return _pulseRate;
-  }
-
-  num get pulseRateNew {
-    var i = _startIndex;
-    while (i < _endIndex) {
-      if (_maxIndex == -1) _maxIndex = 0;
-      if (projection(_maxIndex) < projection(i)) {
-        _maxIndex = i;
-        i = _startIndex;
-      } else {
-        i++;
-      }
-    }
-    return _maxIndex == -1 ? null : rates[_maxIndex];
-  }
-
-  // Returns the index of the lowest frequency to check for peak energy.
-  int get _startIndex {
-    return max(0, _maxIndex - 100);
-  }
-
-  // Returns the index of the highest frequency to check for peak energy.
-  int get _endIndex {
-    return min(rates.length, _maxIndex + 100);
   }
 
   List<BasisFunction> get interpolationPeaks {

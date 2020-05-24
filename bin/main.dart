@@ -21,7 +21,7 @@ static Array get _p {
 
 
 void main(List<String> arguments) {
-  //var X = <double>[0,1,2,3,4,5];
+  // var X = <double>[0,1,2,3,4,5];
   var times = [0.0, 0.079, 0.133, 0.187, 0.254, 0.319, 0.388, 0.441, 0.5, 0.564, 0.629, 1.012, 1.05, 1.105, 1.137, 1.183, 1.217, 1.248, 1.284, 1.317, 1.365, 1.39, 1.434, 1.466, 1.518, 1.574, 1.608, 1.638, 1.682, 1.712, 1.746, 1.786, 1.82, 1.878, 1.93, 1.968, 1.999, 2.033, 2.067, 2.105, 2.137, 2.18, 2.21, 2.247, 2.28, 2.316, 2.353, 2.385, 2.434, 2.464, 2.497, 2.53, 2.569, 2.614, 2.637, 2.68, 2.718, 2.746, 2.783, 2.813, 2.85, 2.885, 2.928, 2.96, 2.999, 3.033, 3.064, 3.103, 3.148, 3.178, 3.214, 3.246, 3.279, 3.315, 3.351, 3.384, 3.426, 3.46, 3.495, 3.528, 3.564, 3.601, 3.634, 3.675, 3.708, 3.744, 3.779, 3.815, 3.85, 3.891, 3.926, 3.959, 3.999, 4.029, 4.067, 4.1, 4.147, 4.172, 4.21, 4.242, 4.277, 4.312, 4.358, 4.392, 4.426, 4.458, 4.49, 4.528, 4.564, 4.599, 4.642, 4.674, 4.707, 4.742, 4.777, 4.815, 4.857, 4.891,
 4.928, 4.959, 4.991, 5.028, 5.061, 5.106, 5.14, 5.173, 5.206, 5.242, 5.279, 5.314, 5.356, 5.39, 5.423, 5.456, 5.49, 5.527, 5.564, 5.598, 5.639, 5.672, 5.709, 5.743, 5.778, 5.814, 5.855, 5.889, 5.923, 5.957, 5.991, 6.027, 6.062, 6.096, 6.138, 6.173, 6.206, 6.242, 
 6.276, 6.314, 6.355, 6.389, 6.423, 6.457, 6.489, 6.527, 6.563, 6.597, 6.637, 6.671, 6.706, 6.741, 6.777, 6.82, 6.857, 6.9, 6.923, 6.959, 6.998, 7.026, 7.062, 7.103, 7.881, 8.046, 8.12, 8.197, 
@@ -56,12 +56,14 @@ void main(List<String> arguments) {
   
     ppg.add(last, pipa_heart.elementAt(i));  
 
+    print(ppg.pulseRate);
+
     // print(last.difference(start).inMilliseconds);  
   }
 
   //print(findPeaks(Array([1,2,3]))[0]);
 
-  PPG test = PPG(25);
+  //PPG test = PPG(25);
 
   // var timesNew = [0, 1, 2, 3, 4, 5, 6, 7];
   // var valuesNew = <double>[3.5, 3, 2.5, 2, 1.5, 1, .5];
@@ -72,17 +74,17 @@ void main(List<String> arguments) {
   // }
 
 
-  print(Array(List.generate(ppg.millisInterp.length, (index) => ppg.window(ppg.millisInterp[index]/1000))));
+  // print(Array(List.generate(ppg.millisInterp.length, (index) => ppg.window(ppg.millisInterp[index]/1000))));
   // print(ppg.reflectionPoint);
   // print(ppg.conservedIndex(ppg.millisInterp.length-1)/ppg.samplingRate);
 
-  print(ppg.pulseRate);
+  //print(ppg.pulseRate);
   //print(ppg.projections);
   // print(ppg.valuesProcessed);
 
   //print(ppg.projection(60-40));
 
-  print(test.pulseRate.toString());
+  //print(test.pulseRate.toString());
   //print(ppg.projections);
   // print(test.valuesProcessed);
 
