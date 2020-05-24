@@ -14,6 +14,13 @@ class SensorValue {
   SensorValue(this.time, this.value);
 }
 
+class DataPoint {
+  final double time;
+  final double value;
+
+  DataPoint(this.time, this.value);
+}
+
 class Oximetry {
   /// Wavelength assumed for the red channel, in nm.
   static int lambdaRed = 670; //Used to be 612
@@ -121,18 +128,37 @@ class PPG {
   final Array _millisInterp = Array([0.0]);
   final Array _valuesInterp = Array.empty();
   final Array _valuesFiltered = Array.empty();
+  final Array _valuesDiff = Array.empty();
   final Array _valuesLog = Array.empty();
-  final Map _peaks = {
+  final Map _valleysDiff = {
     'indices': <int>[],
     'times': Array.empty(),
     'values': Array.empty(),
     'lastIndex': -1
   };
-  final Map _valleys = {
+  final Map _peaksTotal = {
     'indices': <int>[],
     'times': Array.empty(),
     'values': Array.empty(),
     'lastIndex': -1
+  };
+  final Map _valleysTotal = {
+    'indices': <int>[],
+    'times': Array.empty(),
+    'values': Array.empty(),
+    'lastIndex': -1
+  };
+  final Map _peaks = {
+    'indices': <int>[],
+    'times': Array.empty(),
+    'values': Array.empty(),
+    'lastDiffLoc': -1
+  };
+  final Map _valleys = {
+    'indices': <int>[],
+    'times': Array.empty(),
+    'values': Array.empty(),
+    'lastDiffLoc': -1
   };
   double _pulseRate;
   final List<BasisFunction> _interpolationPeaks = [];
@@ -140,20 +166,25 @@ class PPG {
   final Array _valuesMeanEnvelope = Array.empty();
   final Array _valuesProcessed = Array.empty();
 
-  List<SensorValue> _sensorValuesRaw = [];
-  List<SensorValue> _sensorValuesLog = [];
-  List<SensorValue> _sensorValuesInterp = [];
+  List<DataPoint> _dataPointsRaw = [];
+  List<DataPoint> _dataPointsInterp = [];
+  List<DataPoint> _dataPointsFiltered = [];
+  List<DataPoint> _dataPointsPeaks = [];
+  List<DataPoint> _dataPointsProcessed = [];
+  List<DataPoint> _dataPointsMeanEnvelope = [];
 
   /// Sampling rate used to interpolate the PPG signal.
   int samplingRate;
 
   /// High frequency cut-off of the band-pass filter applied to
   /// [valuesInterp] before obtaining [valuesFiltered].
-  double frequencyHigh = 3;
+  double frequencyHigh = 5;
 
   /// Low frequency cut-off of the band-pass filter applied to
   /// [valuesInterp] before obtaining [valuesFiltered].
   double frequencyLow = 0.1;
+
+  final double _threshold = 4;
 
   PPG(this.samplingRate);
 
@@ -181,35 +212,12 @@ class PPG {
     return valuesRaw.length;
   }
 
-  List<SensorValue> get sensorValuesRaw {
-    var i = _sensorValuesRaw.length;
-    while (i < valuesRaw.length) {
-      _sensorValuesRaw.add(SensorValue(dates[i], valuesRaw[i]));
-      i++;
+  List<DataPoint> get dataPointsProcessed {
+    while (_dataPointsProcessed.length < valuesProcessed.length) {
+      var index = _dataPointsProcessed.length;
+      _dataPointsProcessed.add(DataPoint(millisInterp[index+firstIndexEnvelopes], valuesProcessed[index]));
     }
-    return _sensorValuesRaw;
-  }
-
-  List<SensorValue> get sensorValuesLog {
-    var i = _sensorValuesLog.length;
-    while (i < valuesFiltered.length) {
-      var date =
-          start.add(Duration(microseconds: (millisInterp[i] * 1000).round()));
-      _sensorValuesLog.add(SensorValue(date, valuesFiltered[i]));
-      i++;
-    }
-    return _sensorValuesLog;
-  }
-
-  List<SensorValue> get sensorValuesInterp {
-    var i = _sensorValuesInterp.length;
-    while (i < valuesInterp.length) {
-      var date =
-          start.add(Duration(microseconds: (millisInterp[i] * 1000).round()));
-      _sensorValuesInterp.add(SensorValue(date, valuesInterp[i]));
-      i++;
-    }
-    return _sensorValuesInterp;
+    return _dataPointsProcessed;
   }
 
   /// Returns the list of linear basis functions used to interpolate [valuesRaw].
@@ -278,6 +286,15 @@ class PPG {
     return _valuesFiltered;
   }
 
+  /// Returns the first difference of [valuesFiltered].
+  Array get valuesDiff {
+    while (_valuesDiff.length < valuesFiltered.length - 1) {
+      var index = _valuesDiff.length;
+      _valuesDiff.add(valuesFiltered[index + 1] - valuesFiltered[index]);
+    }
+    return _valuesDiff;
+  }
+
   /// Returns the natural logarithm of [valuesFiltered].
   Array get valuesLog {
     while (_valuesLog.length < valuesFiltered.length) {
@@ -287,48 +304,136 @@ class PPG {
     return _valuesLog;
   }
 
+  Map get valleysDiff {
+    while (_valleysDiff['lastIndex'] < valuesDiff.length - 1) {
+      // only check parts you haven't checked yet.
+      // we have to check starting from the index before the last,
+      // because if not we can't tell if the last index was a valley
+      int firstIndex = max(0, _valleysDiff['lastIndex'] - 1);
+      var aux = findValleys(
+          valuesDiff.getRangeArray(firstIndex, valuesDiff.length),
+          threshold: 0);
+      for (var i = 0; i < aux[0].length; i++) {
+        var newIndex = aux[0][i].round() + firstIndex;
+        _valleysDiff['indices'].add(newIndex);
+        _valleysDiff['times'].add(millisInterp[newIndex]);
+        _valleysDiff['values'].add(aux[1][i]);
+      }
+      _valleysDiff['lastIndex'] = valuesDiff.length - 1;
+    }
+    return _valleysDiff;
+  }
+
+  /// Returns the indices, times, and values of the all the peaks of [valuesFiltered].
+  ///
+  /// A value is considered a peak if both
+  /// the previous and next value are smaller or equal to it.
+  Map get peaksTotal {
+    while (_peaksTotal['lastIndex'] < valuesFiltered.length - 1) {
+      // only check parts you haven't checked yet.
+      // we have to check starting from the index befoare the last,
+      // because if not we can't tell if the last index was a peak
+      int firstIndex = max(0, _peaksTotal['lastIndex'] - 1);
+      var aux = findPeaks(
+          valuesFiltered.getRangeArray(firstIndex, valuesFiltered.length));
+      for (var i = 0; i < aux[0].length; i++) {
+        var newIndex = aux[0][i].round() + firstIndex;
+        _peaksTotal['indices'].add(newIndex);
+        _peaksTotal['times'].add(millisInterp[newIndex]);
+        _peaksTotal['values'].add(aux[1][i]);
+      }
+      _peaksTotal['lastIndex'] = valuesFiltered.length - 1;
+    }
+    return _peaksTotal;
+  }
+
+  /// Returns the indices, times, and values of all the valleys of [valuesFiltered].
+  ///
+  /// A value is considered a valley if both
+  /// the previous and next value are greater or equal to it.
+  Map get valleysTotal {
+    while (_valleysTotal['lastIndex'] < valuesFiltered.length - 1) {
+      // only check parts you haven't checked yet.
+      // we have to check starting from the index before the last,
+      // because if not we can't tell if the last index was a valley
+      int firstIndex = max(0, _valleysTotal['lastIndex'] - 1);
+      var aux = findValleys(
+          valuesFiltered.getRangeArray(firstIndex, valuesFiltered.length));
+      for (var i = 0; i < aux[0].length; i++) {
+        var newIndex = aux[0][i].round() + firstIndex;
+        _valleysTotal['indices'].add(newIndex);
+        _valleysTotal['times'].add(millisInterp[newIndex]);
+        _valleysTotal['values'].add(aux[1][i]);
+      }
+      _valleysTotal['lastIndex'] = valuesFiltered.length - 1;
+    }
+    return _valleysTotal;
+  }
+
+  /// Updates [peaks] and [valleys].
+  ///
+  /// This method only considers peaks and valleys if they are found in
+  /// pairs and their difference is greater than [_threshold].
+  void validatePeaks() {
+    int firstLoc = max(0, _peaks['lastDiffLoc']);
+
+    var indicesDiff = valleysDiff['indices'].sublist(firstLoc);
+
+    // for every valley in the derivative
+    for (var loc = 0; loc < indicesDiff.length; loc++) {
+      // find the peak that occurs right before this valley in the derivative
+      var locPeak = peaksTotal['indices']
+          .lastIndexWhere((int index) => index <= indicesDiff[loc]);
+      if (locPeak != -1) {
+        // find the valley that occurs right after this valley in the derivative
+        var locValley = valleysTotal['indices']
+          .indexWhere((int index) => index >= indicesDiff[loc]);
+        if (locValley != -1) {
+          var indexPeak = peaksTotal['indices'][locPeak];
+          var valuePeak = peaksTotal['values'][locPeak];
+          var indexValley = valleysTotal['indices'][locValley];
+          var valueValley = valleysTotal['values'][locValley];
+          // peak to peak difference
+          var delta = valuePeak - valueValley;
+          // if the delta is above the threshold and the peaks
+          // and valleys aren't already accounted for
+          if (delta > _threshold &&
+              !_peaks['indices'].contains(indexPeak) &&
+              !_valleys['indices'].contains(indexValley)) {
+            _peaks['indices'].add(indexPeak);
+            _peaks['times'].add(millisInterp[indexPeak]);
+            _peaks['values'].add(valuePeak);
+
+            _valleys['indices'].add(indexValley);
+            _valleys['times'].add(millisInterp[indexValley]);
+            _valleys['values'].add(valueValley);
+          }
+        }
+      }
+    }
+
+    _peaks['lastDiffLoc'] = valleysDiff['indices'].length - 1;
+    _valleys['lastDiffLoc'] = valleysDiff['indices'].length - 1;
+  }
+
   /// Returns the indices, times, and values of the peaks of [valuesFiltered].
   ///
   /// A value is considered a peak if both
   /// the previous and next value are smaller or equal to it.
   Map get peaks {
-    while (_peaks['lastIndex'] < valuesFiltered.length - 1) {
-      // only check parts you haven't checked yet.
-      // we have to check starting from the index befoare the last,
-      // because if not we can't tell if the last index was a peak
-      int firstIndex = max(0, _peaks['lastIndex'] - 1);
-      var aux = findPeaks(
-          valuesFiltered.getRangeArray(firstIndex, valuesFiltered.length));
-      for (var i = 0; i < aux[0].length; i++) {
-        var newIndex = aux[0][i].round() + firstIndex;
-        _peaks['indices'].add(newIndex);
-        _peaks['times'].add(millisInterp[newIndex]);
-        _peaks['values'].add(aux[1][i]);
-      }
-      _peaks['lastIndex'] = valuesFiltered.length - 1;
+    if (_peaks['lastDiffLoc'] < valleysDiff['indices'].length - 1) {
+      validatePeaks();
     }
     return _peaks;
   }
 
-  /// Returns the indices, times, and values of the valleys of [valuesFiltered].
+  /// Returns the indices, times, and values of all the valleys of [valuesFiltered].
   ///
   /// A value is considered a valley if both
   /// the previous and next value are greater or equal to it.
   Map get valleys {
-    while (_valleys['lastIndex'] < valuesFiltered.length - 1) {
-      // only check parts you haven't checked yet.
-      // we have to check starting from the index before the last,
-      // because if not we can't tell if the last index was a valley
-      int firstIndex = max(0, _valleys['lastIndex'] - 1);
-      var aux = findValleys(
-          valuesFiltered.getRangeArray(firstIndex, valuesFiltered.length));
-      for (var i = 0; i < aux[0].length; i++) {
-        var newIndex = aux[0][i].round() + firstIndex;
-        _valleys['indices'].add(newIndex);
-        _valleys['times'].add(millisInterp[newIndex]);
-        _valleys['values'].add(aux[1][i]);
-      }
-      _valleys['lastIndex'] = valuesFiltered.length - 1;
+    if (_valleys['lastDiffLoc'] < valleysDiff['indices'].length - 1) {
+      validatePeaks();
     }
     return _valleys;
   }
@@ -347,12 +452,12 @@ class PPG {
       print('Peak count pulse rate');
       print(_pulseRate);
 
-      var intervalsRR = arrayDiff(peaks['times']);
-      var ratesRR = Array.empty();
-      intervalsRR.forEach((i) => {ratesRR.add(1 / i * 1000 * 60)});
-      _pulseRate = mean(ratesRR);
-      print('Mean RR inverse pulse rate');
-      print(_pulseRate);
+      // var intervalsRR = arrayDiff(peaks['times']);
+      // var ratesRR = Array.empty();
+      // intervalsRR.forEach((i) => {ratesRR.add(1 / i * 1000 * 60)});
+      // _pulseRate = mean(ratesRR);
+      // print('Mean RR inverse pulse rate');
+      // print(_pulseRate);
 
       // var fftinterp = arrayComplexAbs(rfft(valuesInterp,n:valuesInterp.length));
       // //var fftinterp = FFT.transform(Float64List.fromList(valuesInterp.toList()), Float64List.fromList([]));
@@ -379,7 +484,8 @@ class PPG {
 
   List<BasisFunction> get interpolationPeaks {
     if (_interpolationPeaks.length < peaks['values'].length) {
-      _fillBasisFunctions(_interpolationPeaks, peaks['times'], peaks['values']);
+      _fillBasisFunctions(
+          _interpolationPeaks, peaks['times'], peaks['values']);
     }
     return _interpolationPeaks;
   }
@@ -566,49 +672,6 @@ class PPG {
       }
     }
     return [ix, ax];
-  }
-
-  double window(double t) {
-    var mean = windowCenter;
-    var halfWidth = windowWidth / 2;
-    var eps = windowEdge / halfWidth;
-    if (t <= reflectionPoint) {
-      return turkey(t, mean, halfWidth, alpha: eps);
-    } else {
-      return turkey(2 * reflectionPoint - t, mean, halfWidth, alpha: eps);
-    }
-  }
-
-  static double sinc(double x) {
-    return x == 0 ? 1 : sin(pi * x) / (pi * x);
-  }
-
-  static double turkey(double x, double mean, double halfWidth,
-      {double alpha = 0.5}) {
-    var z = (x - mean + halfWidth) / (2 * halfWidth);
-    if (z < 0) {
-      return 0;
-    } else if (z < alpha * 1 / 2) {
-      return 0.5 * (1 - cos(2 * pi * z / alpha));
-    } else if (z <= 1 / 2) {
-      return 1;
-    } else {
-      return turkey(2 * mean - x, mean, halfWidth);
-    }
-  }
-
-  static double planckTaper(double x, double mean, double halfWidth,
-      {double epsilon = 0.5}) {
-    var z = (x - mean + halfWidth) / (2 * halfWidth);
-    if (z <= 0) {
-      return 0;
-    } else if (z < epsilon) {
-      return 1 / (1 + exp(epsilon / z - epsilon / (epsilon - z)));
-    } else if (z <= 1 / 2) {
-      return 1;
-    } else {
-      return planckTaper(2 * mean - x, mean, halfWidth);
-    }
   }
 }
 
