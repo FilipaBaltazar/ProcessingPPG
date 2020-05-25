@@ -184,7 +184,7 @@ class PPG {
   /// [valuesInterp] before obtaining [valuesFiltered].
   double frequencyLow = 0.1;
 
-  final double _threshold = 4;
+  final double _threshold = 2;
 
   PPG(this.samplingRate);
 
