@@ -115,6 +115,10 @@ class Oximetry {
 }
 
 class PPG {
+  /// Buffer used to avoid the inital peak
+  List<DateTime> buffer = [];
+  bool _buffered = false;
+
   /// Raw values of each data point in the PPG signal.
   Array valuesRaw = Array.empty();
 
@@ -166,12 +170,12 @@ class PPG {
   final Array _valuesMeanEnvelope = Array.empty();
   final Array _valuesProcessed = Array.empty();
 
-  List<DataPoint> _dataPointsRaw = [];
-  List<DataPoint> _dataPointsInterp = [];
-  List<DataPoint> _dataPointsFiltered = [];
-  List<DataPoint> _dataPointsPeaks = [];
-  List<DataPoint> _dataPointsProcessed = [];
-  List<DataPoint> _dataPointsMeanEnvelope = [];
+  final List<DataPoint> _dataPointsRaw = [];
+  final List<DataPoint> _dataPointsInterp = [];
+  final List<DataPoint> _dataPointsFiltered = [];
+  final List<DataPoint> _dataPointsPeaks = [];
+  final List<DataPoint> _dataPointsProcessed = [];
+  final List<DataPoint> _dataPointsMeanEnvelope = [];
 
   /// Sampling rate used to interpolate the PPG signal.
   int samplingRate;
@@ -189,9 +193,21 @@ class PPG {
   PPG(this.samplingRate);
 
   void add(DateTime time, double value) {
-    valuesRaw.add(value);
-    dates.add(time);
-    millis.add(time.difference(start).inMilliseconds.toDouble());
+    if (buffered) {
+      valuesRaw.add(value);
+      dates.add(time);
+      millis.add(time.difference(start).inMilliseconds.toDouble());
+    } else {
+      buffer.add(time);
+    }
+  }
+
+  /// Returns wether or not the signal has passed the buffering phase.
+  bool get buffered {
+    if (_buffered == false && buffer.isNotEmpty) {
+      if (buffer.last.difference(buffer.first).inMilliseconds > 2000) _buffered = true;
+    } 
+    return _buffered;
   }
 
   /// First value in [dates].
@@ -215,7 +231,8 @@ class PPG {
   List<DataPoint> get dataPointsProcessed {
     while (_dataPointsProcessed.length < valuesProcessed.length) {
       var index = _dataPointsProcessed.length;
-      _dataPointsProcessed.add(DataPoint(millisInterp[index+firstIndexEnvelopes], valuesProcessed[index]));
+      _dataPointsProcessed.add(DataPoint(
+          millisInterp[index + firstIndexEnvelopes], valuesProcessed[index]));
     }
     return _dataPointsProcessed;
   }
@@ -387,7 +404,7 @@ class PPG {
       if (locPeak != -1) {
         // find the valley that occurs right after this valley in the derivative
         var locValley = valleysTotal['indices']
-          .indexWhere((int index) => index >= indicesDiff[loc]);
+            .indexWhere((int index) => index >= indicesDiff[loc]);
         if (locValley != -1) {
           var indexPeak = peaksTotal['indices'][locPeak];
           var valuePeak = peaksTotal['values'][locPeak];
@@ -484,8 +501,7 @@ class PPG {
 
   List<BasisFunction> get interpolationPeaks {
     if (_interpolationPeaks.length < peaks['values'].length) {
-      _fillBasisFunctions(
-          _interpolationPeaks, peaks['times'], peaks['values']);
+      _fillBasisFunctions(_interpolationPeaks, peaks['times'], peaks['values']);
     }
     return _interpolationPeaks;
   }
