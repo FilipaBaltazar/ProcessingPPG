@@ -132,6 +132,8 @@ class PPG {
   final Array _millisInterp = Array([0.0]);
   final Array _valuesInterp = Array.empty();
   final Array _valuesFiltered = Array.empty();
+  final Map _statsFiltered = {'sum': 0, 'energy': 0, 'lastIndex': -1};
+  final int statsWindow = 1000;
   final Array _valuesDiff = Array.empty();
   final Array _valuesLog = Array.empty();
   final Map _valleysDiff = {
@@ -152,17 +154,17 @@ class PPG {
     'values': Array.empty(),
     'lastIndex': -1
   };
+  int _valLastLoc = -1;
+  int _valLastThreshold = 0;
   final Map _peaks = {
     'indices': <int>[],
     'times': Array.empty(),
     'values': Array.empty(),
-    'lastDiffLoc': -1
   };
   final Map _valleys = {
     'indices': <int>[],
     'times': Array.empty(),
     'values': Array.empty(),
-    'lastDiffLoc': -1
   };
   double _pulseRate;
   final List<BasisFunction> _interpolationPeaks = [];
@@ -188,25 +190,32 @@ class PPG {
   /// [valuesInterp] before obtaining [valuesFiltered].
   double frequencyLow = 0.1;
 
-  final double _threshold = 2;
+  final int filterOrder = 50;
 
   PPG(this.samplingRate);
 
-  void add(DateTime time, double value) {
-    if (buffered) {
-      valuesRaw.add(value);
-      dates.add(time);
-      millis.add(time.difference(start).inMilliseconds.toDouble());
-    } else {
-      buffer.add(time);
+  PPG.fill(this.dates, this.valuesRaw) {
+    for (var i = 0; i < dates.length; i++) {
+      millis.add(dates[i].difference(start).inMilliseconds.toDouble());
     }
   }
 
-  /// Returns wether or not the signal has passed the buffering phase.
+  void add(DateTime date, double value) {
+    if (buffered) {
+      valuesRaw.add(value);
+      dates.add(date);
+      millis.add(date.difference(start).inMilliseconds.toDouble());
+    } else {
+      buffer.add(date);
+    }
+  }
+
+  /// Returns whether or not the signal has passed the buffering phase.
   bool get buffered {
     if (_buffered == false && buffer.isNotEmpty) {
-      if (buffer.last.difference(buffer.first).inMilliseconds > 2000) _buffered = true;
-    } 
+      if (buffer.last.difference(buffer.first).inMilliseconds > 3000)
+        _buffered = true;
+    }
     return _buffered;
   }
 
@@ -282,7 +291,6 @@ class PPG {
       var bandPassWindow = Array([frequencyLow, frequencyHigh]);
       var normalBandPassWindow =
           bandPassWindow / Array([frequencyNyquist, frequencyNyquist]);
-      var filterOrder = 100;
       var filterCoeffs =
           firwin(filterOrder, normalBandPassWindow, pass_zero: false);
 
@@ -303,9 +311,33 @@ class PPG {
     return _valuesFiltered;
   }
 
+  Map get statsFiltered {
+    while (_statsFiltered['lastIndex'] < lengthInterp - 1) {
+      var index = _statsFiltered['lastIndex'] + 1;
+      if (index >= filterOrder) {
+        _statsFiltered['sum'] = _statsFiltered['sum'] + valuesFiltered[index];
+        _statsFiltered['energy'] =
+            _statsFiltered['energy'] + pow(valuesFiltered[index], 2);
+      }
+      _statsFiltered['lastIndex'] = index;
+    }
+    int window = max(1, lengthInterp - filterOrder);
+    var mean = _statsFiltered['sum'] / (window);
+    var stdDev = sqrt(_statsFiltered['energy'] / (window) - pow(mean, 2));
+    var result = {
+      'mean': mean,
+      'stdDev': stdDev,
+    };
+    return result;
+  }
+
+  int get threshold {
+    return (statsFiltered['stdDev'] * 10/6).round();
+  }
+
   /// Returns the first difference of [valuesFiltered].
   Array get valuesDiff {
-    while (_valuesDiff.length < valuesFiltered.length - 1) {
+    while (_valuesDiff.length < lengthInterp - 1) {
       var index = _valuesDiff.length;
       _valuesDiff.add(valuesFiltered[index + 1] - valuesFiltered[index]);
     }
@@ -314,7 +346,7 @@ class PPG {
 
   /// Returns the natural logarithm of [valuesFiltered].
   Array get valuesLog {
-    while (_valuesLog.length < valuesFiltered.length) {
+    while (_valuesLog.length < lengthInterp) {
       // add the next term
       _valuesLog.add(log(valuesFiltered[_valuesLog.length]));
     }
@@ -326,7 +358,7 @@ class PPG {
       // only check parts you haven't checked yet.
       // we have to check starting from the index before the last,
       // because if not we can't tell if the last index was a valley
-      int firstIndex = max(0, _valleysDiff['lastIndex'] - 1);
+      int firstIndex = max(filterOrder, _valleysDiff['lastIndex'] - 1);
       var aux = findValleys(
           valuesDiff.getRangeArray(firstIndex, valuesDiff.length),
           threshold: 0);
@@ -346,20 +378,21 @@ class PPG {
   /// A value is considered a peak if both
   /// the previous and next value are smaller or equal to it.
   Map get peaksTotal {
-    while (_peaksTotal['lastIndex'] < valuesFiltered.length - 1) {
+    while (_peaksTotal['lastIndex'] < lengthInterp - 1) {
       // only check parts you haven't checked yet.
       // we have to check starting from the index befoare the last,
       // because if not we can't tell if the last index was a peak
-      int firstIndex = max(0, _peaksTotal['lastIndex'] - 1);
-      var aux = findPeaks(
-          valuesFiltered.getRangeArray(firstIndex, valuesFiltered.length));
+      // we can't check before the filterOrder because the signal is broken before that
+      int firstIndex = max(filterOrder, _peaksTotal['lastIndex'] - 1);
+      var aux =
+          findPeaks(valuesFiltered.getRangeArray(firstIndex, lengthInterp));
       for (var i = 0; i < aux[0].length; i++) {
         var newIndex = aux[0][i].round() + firstIndex;
         _peaksTotal['indices'].add(newIndex);
         _peaksTotal['times'].add(millisInterp[newIndex]);
         _peaksTotal['values'].add(aux[1][i]);
       }
-      _peaksTotal['lastIndex'] = valuesFiltered.length - 1;
+      _peaksTotal['lastIndex'] = lengthInterp - 1;
     }
     return _peaksTotal;
   }
@@ -369,68 +402,90 @@ class PPG {
   /// A value is considered a valley if both
   /// the previous and next value are greater or equal to it.
   Map get valleysTotal {
-    while (_valleysTotal['lastIndex'] < valuesFiltered.length - 1) {
+    while (_valleysTotal['lastIndex'] < lengthInterp - 1) {
       // only check parts you haven't checked yet.
       // we have to check starting from the index before the last,
       // because if not we can't tell if the last index was a valley
-      int firstIndex = max(0, _valleysTotal['lastIndex'] - 1);
-      var aux = findValleys(
-          valuesFiltered.getRangeArray(firstIndex, valuesFiltered.length));
+      // we can't check before the filterOrder because the signal is broken before that
+      int firstIndex = max(filterOrder, _valleysTotal['lastIndex'] - 1);
+      var aux =
+          findValleys(valuesFiltered.getRangeArray(firstIndex, lengthInterp));
       for (var i = 0; i < aux[0].length; i++) {
         var newIndex = aux[0][i].round() + firstIndex;
         _valleysTotal['indices'].add(newIndex);
         _valleysTotal['times'].add(millisInterp[newIndex]);
         _valleysTotal['values'].add(aux[1][i]);
       }
-      _valleysTotal['lastIndex'] = valuesFiltered.length - 1;
+      _valleysTotal['lastIndex'] = lengthInterp - 1;
     }
     return _valleysTotal;
+  }
+
+  void clearPeaks() {
+    _valLastLoc = -1;
+
+    _peaks['indices'].clear();
+    _peaks['times'].clear();
+    _peaks['values'].clear();
+    _interpolationPeaks.clear();
+
+    _valleys['indices'].clear();
+    _valleys['times'].clear();
+    _valleys['values'].clear();
+    _interpolationValleys.clear();
+
+    _valuesMeanEnvelope.clear();
+    _valuesProcessed.clear();
   }
 
   /// Updates [peaks] and [valleys].
   ///
   /// This method only considers peaks and valleys if they are found in
-  /// pairs and their difference is greater than [_threshold].
+  /// pairs and their difference is greater than [threshold].
   void validatePeaks() {
-    int firstLoc = max(0, _peaks['lastDiffLoc']);
+    if (lengthInterp > filterOrder) {
+      if (threshold != _valLastThreshold) clearPeaks();
 
-    var indicesDiff = valleysDiff['indices'].sublist(firstLoc);
+      var firstLoc = max(0, _valLastLoc);
 
-    // for every valley in the derivative
-    for (var loc = 0; loc < indicesDiff.length; loc++) {
-      // find the peak that occurs right before this valley in the derivative
-      var locPeak = peaksTotal['indices']
-          .lastIndexWhere((int index) => index <= indicesDiff[loc]);
-      if (locPeak != -1) {
-        // find the valley that occurs right after this valley in the derivative
-        var locValley = valleysTotal['indices']
-            .indexWhere((int index) => index >= indicesDiff[loc]);
-        if (locValley != -1) {
-          var indexPeak = peaksTotal['indices'][locPeak];
-          var valuePeak = peaksTotal['values'][locPeak];
-          var indexValley = valleysTotal['indices'][locValley];
-          var valueValley = valleysTotal['values'][locValley];
-          // peak to peak difference
-          var delta = valuePeak - valueValley;
-          // if the delta is above the threshold and the peaks
-          // and valleys aren't already accounted for
-          if (delta > _threshold &&
-              !_peaks['indices'].contains(indexPeak) &&
-              !_valleys['indices'].contains(indexValley)) {
-            _peaks['indices'].add(indexPeak);
-            _peaks['times'].add(millisInterp[indexPeak]);
-            _peaks['values'].add(valuePeak);
+      var indicesDiff = valleysDiff['indices'].sublist(firstLoc);
 
-            _valleys['indices'].add(indexValley);
-            _valleys['times'].add(millisInterp[indexValley]);
-            _valleys['values'].add(valueValley);
+      // for every valley in the derivative
+      for (var loc = 0; loc < indicesDiff.length; loc++) {
+        // find the peak that occurs right before this valley in the derivative
+        var locPeak = peaksTotal['indices']
+            .lastIndexWhere((int index) => index <= indicesDiff[loc]);
+        if (locPeak != -1) {
+          // find the valley that occurs right after this valley in the derivative
+          var locValley = valleysTotal['indices']
+              .indexWhere((int index) => index >= indicesDiff[loc]);
+          if (locValley != -1) {
+            var indexPeak = peaksTotal['indices'][locPeak];
+            var valuePeak = peaksTotal['values'][locPeak];
+            var indexValley = valleysTotal['indices'][locValley];
+            var valueValley = valleysTotal['values'][locValley];
+            // peak to peak difference
+            var delta = valuePeak - valueValley;
+            // if the delta is above the threshold and the peaks
+            // and valleys aren't already accounted for
+            if (delta > threshold &&
+                !_peaks['indices'].contains(indexPeak) &&
+                !_valleys['indices'].contains(indexValley)) {
+              _peaks['indices'].add(indexPeak);
+              _peaks['times'].add(millisInterp[indexPeak]);
+              _peaks['values'].add(valuePeak);
+
+              _valleys['indices'].add(indexValley);
+              _valleys['times'].add(millisInterp[indexValley]);
+              _valleys['values'].add(valueValley);
+            }
           }
         }
       }
     }
 
-    _peaks['lastDiffLoc'] = valleysDiff['indices'].length - 1;
-    _valleys['lastDiffLoc'] = valleysDiff['indices'].length - 1;
+    _valLastLoc = valleysDiff['indices'].length - 1;
+    _valLastThreshold = threshold;
   }
 
   /// Returns the indices, times, and values of the peaks of [valuesFiltered].
@@ -438,9 +493,9 @@ class PPG {
   /// A value is considered a peak if both
   /// the previous and next value are smaller or equal to it.
   Map get peaks {
-    if (_peaks['lastDiffLoc'] < valleysDiff['indices'].length - 1) {
-      validatePeaks();
-    }
+    // if (_peaks['lastDiffLoc'] < valleysDiff['indices'].length - 1) {
+    validatePeaks();
+    // }
     return _peaks;
   }
 
@@ -449,52 +504,31 @@ class PPG {
   /// A value is considered a valley if both
   /// the previous and next value are greater or equal to it.
   Map get valleys {
-    if (_valleys['lastDiffLoc'] < valleysDiff['indices'].length - 1) {
-      validatePeaks();
-    }
+    // if (_valleys['lastDiffLoc'] < valleysDiff['indices'].length - 1) {
+    validatePeaks();
+    // }
     return _valleys;
   }
 
   /// Returns the pulse rate calculated from [valuesFiltered].
   double get pulseRate {
     if (peaks['values'].length > 1) {
-      // print('peaks');
-      //var indices = peaks[0];
-      // print('Filtered values');
-      // print(valuesLog);
-      // print(durationsInterp.last);
-      // print(durations.last);
       var timeSpan = peaks['times'].last - peaks['times'].first;
       _pulseRate = ((peaks['times'].length - 1) / (timeSpan / 1000)) * 60;
       print('Peak count pulse rate');
       print(_pulseRate);
 
-      // var intervalsRR = arrayDiff(peaks['times']);
-      // var ratesRR = Array.empty();
-      // intervalsRR.forEach((i) => {ratesRR.add(1 / i * 1000 * 60)});
-      // _pulseRate = mean(ratesRR);
-      // print('Mean RR inverse pulse rate');
-      // print(_pulseRate);
-
-      // var fftinterp = arrayComplexAbs(rfft(valuesInterp,n:valuesInterp.length));
-      // //var fftinterp = FFT.transform(Float64List.fromList(valuesInterp.toList()), Float64List.fromList([]));
-      // print('fft interp');
-      // print(fftinterp);
-      // var fftfiltered = arrayComplexAbs(rfft(valuesFiltered,n:valuesFiltered.length));
-      // print('fft filtered');
-      // print(fftfiltered);
-      // var fft = arrayComplexAbs(rfft(valuesProcessed,n:valuesProcessed.length));
-      // print('fft processed');
-      // print(fft);
-      // var frequency = fftFreq(valuesInterp.length, d: 1/samplingRate/60);
-      // var index = arrayArgMax(fft.getRangeArray(10,fft.length));
-      // _pulseRate = frequency[index];
-      // print('FFT pulse rate');
-      // print(_pulseRate);
-
-      // print('FFT frequency domain (BPM)');
-      // print(frequency);
-
+      var intervalsRR = arrayDiff(peaks['times']);
+      var ratesRR = <int>[];
+      intervalsRR.forEach((i) => {ratesRR.add((1 / i * 1000 * 60).round())});
+      var counts = Map<int,int>();
+      ratesRR.forEach((rate) =>
+          counts[rate] = !counts.containsKey(rate) ? (1) : (counts[rate] + 1));
+      var maxCount = counts.values.reduce((value, count) => max(value, count));
+      // _pulseRate = counts.keys.lastWhere((rate) => counts[rate] == maxCount).toDouble();
+      _pulseRate = ratesRR.reduce((value,rate) => rate+value)/ratesRR.length;
+      print('Mean RR inverse pulse rate');
+      print(_pulseRate);
     }
     return _pulseRate;
   }
@@ -516,7 +550,7 @@ class PPG {
 
   /// Returns the first index of [valuesFiltered] that is covered by both envelopes.
   int get firstIndexEnvelopes {
-    if (!peaks['indices'].isEmpty && !valleys['indices'].isEmpty) {
+    if (peaks['indices'].isNotEmpty && valleys['indices'].isNotEmpty) {
       return max(peaks['indices'].first, valleys['indices'].first);
     } else {
       return null;
@@ -525,7 +559,7 @@ class PPG {
 
   /// Returns the last index of [valuesFiltered] that is covered by both envelopes.
   int get lastIndexEnvelopes {
-    if (!peaks['indices'].isEmpty && !valleys['indices'].isEmpty) {
+    if (peaks['indices'].isNotEmpty && valleys['indices'].isNotEmpty) {
       return min(peaks['indices'].last, valleys['indices'].last);
     } else {
       return null;

@@ -50,13 +50,15 @@ void main(List<String> arguments) {
 
   PPG ppg = PPG(25);
 
+  // i = 60 +55
 
   for (var i = 0; i < pipa_heart.length; i++) {
     last = start.add(Duration(milliseconds:(times.elementAt(i)*1000).round()));
   
     ppg.add(last, pipa_heart.elementAt(i));  
+    // ppg.pulseRate;
 
-    print(ppg.valuesProcessed.length);
+    // print(ppg.valuesProcessed.length);
 
     // print(last.difference(start).inMilliseconds);  
   }
