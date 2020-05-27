@@ -561,7 +561,7 @@ class PPG {
 
   /// Returns the first index of [valuesFiltered] that is covered by both envelopes.
   int get firstIndexEnvelopes {
-    if (peaks['indices'].isNotEmpty && valleys['indices'].isNotEmpty) {
+    if (interpolationPeaks.isNotEmpty && interpolationValleys.isNotEmpty) {
       return max(peaks['indices'].first, valleys['indices'].first);
     } else {
       return -1;
@@ -570,7 +570,7 @@ class PPG {
 
   /// Returns the last index of [valuesFiltered] that is covered by both envelopes.
   int get lastIndexEnvelopes {
-    if (peaks['indices'].isNotEmpty && valleys['indices'].isNotEmpty) {
+    if (interpolationPeaks.isNotEmpty && interpolationValleys.isNotEmpty) {
       return min(peaks['indices'].last, valleys['indices'].last);
     } else {
       return -1;
