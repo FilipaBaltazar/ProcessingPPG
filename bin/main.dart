@@ -56,14 +56,14 @@ void main(List<String> arguments) {
     last = start.add(Duration(milliseconds:(times.elementAt(i)*1000).round()));
   
     ppg.add(last, pipa_heart.elementAt(i));  
-    // ppg.pulseRate;
+    //print(ppg.breathingRate);
 
-    print(ppg.valuesProcessed.length);
+    // print(ppg.valuesProcessed.length);
 
     // print(last.difference(start).inMilliseconds);  
   }
 
-  ppg.pulseRate;
+  ppg.breathingRate;
 
   //print(findPeaks(Array([1,2,3]))[0]);
 

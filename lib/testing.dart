@@ -171,6 +171,13 @@ class PPG {
   final List<BasisFunction> _interpolationValleys = [];
   final Array _valuesMeanEnvelope = Array.empty();
   final Array _valuesProcessed = Array.empty();
+  final Map _peaksMean = {
+    'indices': <int>[],
+    'times': Array.empty(),
+    'values': Array.empty(),
+    'lastIndex': -1
+  };
+  double _breathingRate;
 
   final List<DataPoint> _dataPointsRaw = [];
   final List<DataPoint> _dataPointsInterp = [];
@@ -436,6 +443,10 @@ class PPG {
 
     _valuesMeanEnvelope.clear();
     _valuesProcessed.clear();
+
+    _peaksMean['indices'].clear();
+    _peaksMean['times'].clear();
+    _peaksMean['values'].clear();
   }
 
   /// Updates [peaks] and [valleys].
@@ -553,7 +564,7 @@ class PPG {
     if (peaks['indices'].isNotEmpty && valleys['indices'].isNotEmpty) {
       return max(peaks['indices'].first, valleys['indices'].first);
     } else {
-      return null;
+      return -1;
     }
   }
 
@@ -562,14 +573,14 @@ class PPG {
     if (peaks['indices'].isNotEmpty && valleys['indices'].isNotEmpty) {
       return min(peaks['indices'].last, valleys['indices'].last);
     } else {
-      return null;
+      return -1;
     }
   }
 
   /// Returns the length of [valuesMeanEnvelope], which is only defined
   /// in the region covered by both envelopes.
   int get lengthEnvelopes {
-    if (lastIndexEnvelopes != null) {
+    if (lastIndexEnvelopes != -1) {
       return lastIndexEnvelopes - firstIndexEnvelopes + 1;
     } else {
       return 0;
@@ -601,6 +612,49 @@ class PPG {
       }
     }
     return _valuesMeanEnvelope;
+  }
+
+  Map get peaksMean {
+    while (_peaksMean['lastIndex'] < lastIndexEnvelopes) {
+      // only check parts you haven't checked yet.
+      // we have to check starting from the index befoare the last,
+      // because if not we can't tell if the last index was a peak
+      // we can't check before the filterOrder because the signal is broken before that
+      int firstPos = max(0, _peaksMean['lastIndex'] - 1 - firstIndexEnvelopes);
+      var aux =
+          findPeaks(valuesMeanEnvelope.getRangeArray(firstPos, lengthEnvelopes));
+      for (var i = 0; i < aux[0].length; i++) {
+        var newIndex = aux[0][i].round() + firstPos + firstIndexEnvelopes;
+        _peaksMean['indices'].add(newIndex);
+        _peaksMean['times'].add(millisInterp[newIndex]);
+        _peaksMean['values'].add(aux[1][i]);
+      }
+      _peaksMean['lastIndex'] = lastIndexEnvelopes;
+    }
+    return _peaksMean;
+  }
+
+  /// Returns the breathing rate calculated from [valuesMeanEnvelope].
+  double get breathingRate {
+    if (peaksMean['values'].length > 1) {
+      var timeSpan = peaksMean['times'].last - peaksMean['times'].first;
+      _breathingRate = ((peaksMean['times'].length - 1) / (timeSpan / 1000)) * 60;
+      // print('Peak count breathing rate');
+      // print(_breathingRate);
+
+      // var intervalsRR = arrayDiff(peaks['times']);
+      // var ratesRR = <int>[];
+      // intervalsRR.forEach((i) => {ratesRR.add((1 / i * 1000 * 60).round())});
+      // var counts = Map<int,int>();
+      // ratesRR.forEach((rate) =>
+      //     counts[rate] = !counts.containsKey(rate) ? (1) : (counts[rate] + 1));
+      // var maxCount = counts.values.reduce((value, count) => max(value, count));
+      // // _breathingRate = counts.keys.lastWhere((rate) => counts[rate] == maxCount).toDouble();
+      // _breathingRate = ratesRR.reduce((value,rate) => rate+value)/ratesRR.length;
+      // print('Mean RR inverse breathing rate');
+      // print(_breathingRate);
+    }
+    return _breathingRate;
   }
 
   /// Returns the difference between [valuesFiltered] and [valuesMeanEnvelope].
