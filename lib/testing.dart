@@ -515,20 +515,20 @@ class PPG {
     if (peaks['values'].length > 1) {
       var timeSpan = peaks['times'].last - peaks['times'].first;
       _pulseRate = ((peaks['times'].length - 1) / (timeSpan / 1000)) * 60;
-      print('Peak count pulse rate');
-      print(_pulseRate);
+      // print('Peak count pulse rate');
+      // print(_pulseRate);
 
-      var intervalsRR = arrayDiff(peaks['times']);
-      var ratesRR = <int>[];
-      intervalsRR.forEach((i) => {ratesRR.add((1 / i * 1000 * 60).round())});
-      var counts = Map<int,int>();
-      ratesRR.forEach((rate) =>
-          counts[rate] = !counts.containsKey(rate) ? (1) : (counts[rate] + 1));
-      var maxCount = counts.values.reduce((value, count) => max(value, count));
-      // _pulseRate = counts.keys.lastWhere((rate) => counts[rate] == maxCount).toDouble();
-      _pulseRate = ratesRR.reduce((value,rate) => rate+value)/ratesRR.length;
-      print('Mean RR inverse pulse rate');
-      print(_pulseRate);
+      // var intervalsRR = arrayDiff(peaks['times']);
+      // var ratesRR = <int>[];
+      // intervalsRR.forEach((i) => {ratesRR.add((1 / i * 1000 * 60).round())});
+      // var counts = Map<int,int>();
+      // ratesRR.forEach((rate) =>
+      //     counts[rate] = !counts.containsKey(rate) ? (1) : (counts[rate] + 1));
+      // var maxCount = counts.values.reduce((value, count) => max(value, count));
+      // // _pulseRate = counts.keys.lastWhere((rate) => counts[rate] == maxCount).toDouble();
+      // _pulseRate = ratesRR.reduce((value,rate) => rate+value)/ratesRR.length;
+      // print('Mean RR inverse pulse rate');
+      // print(_pulseRate);
     }
     return _pulseRate;
   }
