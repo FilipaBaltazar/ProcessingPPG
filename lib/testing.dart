@@ -757,9 +757,9 @@ class PPG {
     if (basisFunctions.isEmpty) return result;
 
     assert(times.first >= basisFunctions.first.midTime,
-        'The first time must be greater than the middle time of the first basis function.');
+        'The first time must be greater than the middle time of the first basis function.\nDomain first time: ${times.first} \nFirst function middle time: ${basisFunctions.first.midTime}');
     assert(times.last <= basisFunctions.last.midTime,
-        'The last time must be smaller than the middle time of the last basis function.');
+        'The last time must be smaller than the middle time of the last basis function.\nDomain last time: ${times.last} \nLast function middle time: ${basisFunctions.last.midTime}');
 
     if (basisFunctions.length == 1)
       return Array([basisFunctions.first.midTimeValue]);
