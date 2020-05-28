@@ -56,7 +56,7 @@ void main(List<String> arguments) {
     last = start.add(Duration(milliseconds:(times.elementAt(i)*1000).round()));
   
     ppg.add(last, pipa_heart.elementAt(i));  
-    //print(ppg.breathingRate);
+    print(ppg.pulseRate);
 
     // print(ppg.valuesProcessed.length);
 

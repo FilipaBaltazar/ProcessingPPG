@@ -170,7 +170,6 @@ class PPG {
   final List<BasisFunction> _interpolationPeaks = [];
   final List<BasisFunction> _interpolationValleys = [];
   final Array _valuesMeanEnvelope = Array.empty();
-  final Array _valuesProcessed = Array.empty();
   final Map _peaksMean = {
     'indices': <int>[],
     'times': Array.empty(),
@@ -178,6 +177,8 @@ class PPG {
     'lastIndex': -1
   };
   double _breathingRate;
+  final Array _valuesProcessed = Array.empty();
+  final Array _valuesDeltaEnvelopes = Array.empty();
 
   final List<DataPoint> _dataPointsRaw = [];
   final List<DataPoint> _dataPointsInterp = [];
@@ -322,13 +323,20 @@ class PPG {
     while (_statsFiltered['lastIndex'] < lengthInterp - 1) {
       var index = _statsFiltered['lastIndex'] + 1;
       if (index >= filterOrder) {
+        var removeIndex = index - statsWindow;
+        if (removeIndex >= filterOrder) {
+          _statsFiltered['sum'] =
+              _statsFiltered['sum'] - valuesFiltered[removeIndex];
+          _statsFiltered['energy'] =
+              _statsFiltered['energy'] - pow(valuesFiltered[removeIndex], 2);
+        }
         _statsFiltered['sum'] = _statsFiltered['sum'] + valuesFiltered[index];
         _statsFiltered['energy'] =
             _statsFiltered['energy'] + pow(valuesFiltered[index], 2);
       }
       _statsFiltered['lastIndex'] = index;
     }
-    int window = max(1, lengthInterp - filterOrder);
+    int window = min(statsWindow, max(1, lengthInterp - filterOrder));
     var mean = _statsFiltered['sum'] / (window);
     var stdDev = sqrt(_statsFiltered['energy'] / (window) - pow(mean, 2));
     var result = {
@@ -339,7 +347,7 @@ class PPG {
   }
 
   int get threshold {
-    return (statsFiltered['stdDev'] * 10/6).round();
+    return (statsFiltered['stdDev'] * 10 / 6).round();
   }
 
   /// Returns the first difference of [valuesFiltered].
@@ -443,6 +451,7 @@ class PPG {
 
     _valuesMeanEnvelope.clear();
     _valuesProcessed.clear();
+    _valuesDeltaEnvelopes.clear();
 
     _peaksMean['indices'].clear();
     _peaksMean['times'].clear();
@@ -621,8 +630,8 @@ class PPG {
       // because if not we can't tell if the last index was a peak
       // we can't check before the filterOrder because the signal is broken before that
       int firstPos = max(0, _peaksMean['lastIndex'] - 1 - firstIndexEnvelopes);
-      var aux =
-          findPeaks(valuesMeanEnvelope.getRangeArray(firstPos, lengthEnvelopes));
+      var aux = findPeaks(
+          valuesMeanEnvelope.getRangeArray(firstPos, lengthEnvelopes));
       for (var i = 0; i < aux[0].length; i++) {
         var newIndex = aux[0][i].round() + firstPos + firstIndexEnvelopes;
         _peaksMean['indices'].add(newIndex);
@@ -638,7 +647,8 @@ class PPG {
   double get breathingRate {
     if (peaksMean['values'].length > 1) {
       var timeSpan = peaksMean['times'].last - peaksMean['times'].first;
-      _breathingRate = ((peaksMean['times'].length - 1) / (timeSpan / 1000)) * 60;
+      _breathingRate =
+          ((peaksMean['times'].length - 1) / (timeSpan / 1000)) * 60;
       // print('Peak count breathing rate');
       // print(_breathingRate);
 
@@ -669,6 +679,35 @@ class PPG {
           valuesMeanEnvelope[newIndex]);
     }
     return _valuesProcessed;
+  }
+
+  /// Returns the difference between the upper and lower envelopes of [valuesFiltered].
+  ///
+  /// This array is only defined in the region covered by both the top and bottom envelopes,
+  /// which is the region covered by both the peaks and valleys.
+  Array get valuesDeltaEnvelopes {
+    while (_valuesDeltaEnvelopes.length < lengthEnvelopes) {
+      // lets only grab the times we don't yet have
+      var times = Array(millisEnvelopes.sublist(_valuesDeltaEnvelopes.length));
+      var valuesUpper = interpolate(interpolationPeaks, times);
+      var valuesLower = interpolate(interpolationValleys, times);
+      for (var i = 0; i < valuesUpper.length; i++) {
+        _valuesDeltaEnvelopes.add((valuesUpper[i] - valuesLower[i]));
+      }
+    }
+    return _valuesDeltaEnvelopes;
+  }
+
+  double get amplitudeDC {
+    return mean(valuesMeanEnvelope);
+  }
+
+  double get amplitudeAC {
+    return mean(valuesDeltaEnvelopes);
+  }
+
+  double get ratioACDC {
+    return mean(valuesDeltaEnvelopes / valuesMeanEnvelope);
   }
 
   /// Fills `basisFunction` with [BasisFunction] objects
