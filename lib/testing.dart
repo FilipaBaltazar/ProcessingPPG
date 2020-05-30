@@ -133,7 +133,7 @@ class PPG {
   final Array _valuesInterp = Array.empty();
   final Array _valuesFiltered = Array.empty();
   final Map _statsFiltered = {'sum': 0, 'energy': 0, 'lastIndex': -1};
-  final int statsWindow = 1000;
+  final int statsWindow = 200;
   final Array _valuesDiff = Array.empty();
   final Array _valuesLog = Array.empty();
   final Map _valleysDiff = {
@@ -155,7 +155,7 @@ class PPG {
     'lastIndex': -1
   };
   int _valLastLoc = -1;
-  int _valLastThreshold = 0;
+  double _valLastThreshold = 0;
   final Map _peaks = {
     'indices': <int>[],
     'times': Array.empty(),
@@ -354,8 +354,8 @@ class PPG {
     return result;
   }
 
-  int get threshold {
-    return (statsFiltered['stdDev'] * 10 / 6).round();
+  double get threshold {
+    return (statsFiltered['stdDev'] * 10 / 6);
   }
 
   /// Returns the first difference of [valuesFiltered].
