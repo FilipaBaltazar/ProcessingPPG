@@ -48,7 +48,7 @@ void main(List<String> arguments) {
   var last = DateTime.now();
   var start= last;
 
-  PPG ppg = PPG(25);
+  PPG ppg = PPG(66);
 
   // i = 60 +55
 

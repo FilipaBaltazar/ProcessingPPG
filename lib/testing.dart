@@ -274,7 +274,7 @@ class PPG {
   /// Returns the timespan since [start] of each data point in [valuesInterp], in milliseconds.
   Array get millisInterp {
     while (_millisInterp.length < lengthInterp) {
-      _millisInterp.add(_millisInterp.last + 1 / samplingRate * 1000);
+      _millisInterp.add(_millisInterp.length * 1 / samplingRate * 1000);
     }
     return _millisInterp;
   }
@@ -482,8 +482,10 @@ class PPG {
           if (locValley != -1) {
             var indexPeak = peaksTotal['indices'][locPeak];
             var valuePeak = peaksTotal['values'][locPeak];
+            var timePeak = peaksTotal['times'][locPeak];
             var indexValley = valleysTotal['indices'][locValley];
             var valueValley = valleysTotal['values'][locValley];
+            var timeValley = valleysTotal['times'][locValley];
             // peak to peak difference
             var delta = valuePeak - valueValley;
             // if the delta is above the threshold and the peaks
@@ -492,11 +494,11 @@ class PPG {
                 !_peaks['indices'].contains(indexPeak) &&
                 !_valleys['indices'].contains(indexValley)) {
               _peaks['indices'].add(indexPeak);
-              _peaks['times'].add(millisInterp[indexPeak]);
+              _peaks['times'].add(timePeak);
               _peaks['values'].add(valuePeak);
 
               _valleys['indices'].add(indexValley);
-              _valleys['times'].add(millisInterp[indexValley]);
+              _valleys['times'].add(timeValley);
               _valleys['values'].add(valueValley);
             }
           }
@@ -819,16 +821,16 @@ class PPG {
 }
 
 class BasisFunction {
-  num startTime;
-  num midTime;
-  num finalTime;
-  num midTimeValue;
+  double startTime;
+  double midTime;
+  double finalTime;
+  double midTimeValue;
 
   BasisFunction(
       this.startTime, this.midTime, this.finalTime, this.midTimeValue);
 
   /// Returns the value of the interpolation at time point `t`.
-  num at(num t) {
+  double at(double t) {
     if (startTime != null && t < startTime) {
       return 0.0;
     } else if (t < midTime) {
@@ -843,7 +845,7 @@ class BasisFunction {
   }
 
   /// Returns the value of the interpolation at time point `t`.
-  num operator [](num t) => at(t);
+  double operator [](double t) => at(t);
 
   @override
   String toString() {
