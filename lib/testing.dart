@@ -169,8 +169,17 @@ class PPG {
   double _pulseRate;
   final List<BasisFunction> _interpolationPeaks = [];
   final List<BasisFunction> _interpolationValleys = [];
+  final Array _valuesUpperEnvelope = Array.empty();
   final Array _valuesMeanEnvelope = Array.empty();
+  final Array _valuesLowerEnvelope = Array.empty();
+  final Array _valuesDeltaEnvelopes = Array.empty();
   final Map _peaksMean = {
+    'indices': <int>[],
+    'times': Array.empty(),
+    'values': Array.empty(),
+    'lastIndex': -1
+  };
+  final Map _peaksDelta = {
     'indices': <int>[],
     'times': Array.empty(),
     'values': Array.empty(),
@@ -178,7 +187,6 @@ class PPG {
   };
   double _breathingRate;
   final Array _valuesProcessed = Array.empty();
-  final Array _valuesDeltaEnvelopes = Array.empty();
 
   final List<DataPoint> _dataPointsRaw = [];
   final List<DataPoint> _dataPointsInterp = [];
@@ -608,6 +616,22 @@ class PPG {
     }
   }
 
+  /// Returns the upper envelope of [valuesFiltered].
+  ///
+  /// This array is only defined in the region covered by both the top and bottom envelopes,
+  /// which is the region covered by both the peaks and valleys.
+  Array get valuesUpperEnvelope {
+    while (_valuesUpperEnvelope.length < lengthEnvelopes) {
+      // lets only grab the times we don't yet have
+      var times = Array(millisEnvelopes.sublist(_valuesUpperEnvelope.length));
+      var valuesUpper = interpolate(interpolationPeaks, times);
+      for (var i = 0; i < valuesUpper.length; i++) {
+        _valuesUpperEnvelope.add(valuesUpper[i]);
+      }
+    }
+    return _valuesUpperEnvelope;
+  }
+
   /// Returns the mean envelope of [valuesFiltered].
   ///
   /// This array is only defined in the region covered by both the top and bottom envelopes,
@@ -623,6 +647,22 @@ class PPG {
       }
     }
     return _valuesMeanEnvelope;
+  }
+
+  /// Returns the lower envelope of [valuesFiltered].
+  ///
+  /// This array is only defined in the region covered by both the top and bottom envelopes,
+  /// which is the region covered by both the peaks and valleys.
+  Array get valuesLowerEnvelope {
+    while (_valuesLowerEnvelope.length < lengthEnvelopes) {
+      // lets only grab the times we don't yet have
+      var times = Array(millisEnvelopes.sublist(_valuesLowerEnvelope.length));
+      var valuesLower = interpolate(interpolationValleys, times);
+      for (var i = 0; i < valuesLower.length; i++) {
+        _valuesLowerEnvelope.add(valuesLower[i]);
+      }
+    }
+    return _valuesLowerEnvelope;
   }
 
   Map get peaksMean {
@@ -645,12 +685,49 @@ class PPG {
     return _peaksMean;
   }
 
-  /// Returns the breathing rate calculated from [valuesMeanEnvelope].
+  /// Returns the difference between the upper and lower envelopes of [valuesFiltered].
+  ///
+  /// This array is only defined in the region covered by both the top and bottom envelopes,
+  /// which is the region covered by both the peaks and valleys.
+  Array get valuesDeltaEnvelopes {
+    while (_valuesDeltaEnvelopes.length < lengthEnvelopes) {
+      // lets only grab the times we don't yet have
+      var times = Array(millisEnvelopes.sublist(_valuesDeltaEnvelopes.length));
+      var valuesUpper = interpolate(interpolationPeaks, times);
+      var valuesLower = interpolate(interpolationValleys, times);
+      for (var i = 0; i < valuesUpper.length; i++) {
+        _valuesDeltaEnvelopes.add((valuesUpper[i] - valuesLower[i]));
+      }
+    }
+    return _valuesDeltaEnvelopes;
+  }
+
+  Map get peaksDelta {
+    while (_peaksDelta['lastIndex'] < lastIndexEnvelopes) {
+      // only check parts you haven't checked yet.
+      // we have to check starting from the index befoare the last,
+      // because if not we can't tell if the last index was a peak
+      // we can't check before the filterOrder because the signal is broken before that
+      int firstPos = max(0, _peaksDelta['lastIndex'] - 1 - firstIndexEnvelopes);
+      var aux = findPeaks(
+          valuesDeltaEnvelopes.getRangeArray(firstPos, lengthEnvelopes));
+      for (var i = 0; i < aux[0].length; i++) {
+        var newIndex = aux[0][i].round() + firstPos + firstIndexEnvelopes;
+        _peaksDelta['indices'].add(newIndex);
+        _peaksDelta['times'].add(millisInterp[newIndex]);
+        _peaksDelta['values'].add(aux[1][i]);
+      }
+      _peaksDelta['lastIndex'] = lastIndexEnvelopes;
+    }
+    return _peaksDelta;
+  }
+
+  /// Returns the breathing rate calculated from [valuesDeltaEnvelopes].
   double get breathingRate {
-    if (peaksMean['values'].length > 1) {
-      var timeSpan = peaksMean['times'].last - peaksMean['times'].first;
+    if (peaksDelta['values'].length > 1) {
+      var timeSpan = peaksDelta['times'].last - peaksDelta['times'].first;
       _breathingRate =
-          ((peaksMean['times'].length - 1) / (timeSpan / 1000)) * 60;
+          ((peaksDelta['times'].length - 1) / (timeSpan / 1000)) * 60;
       // print('Peak count breathing rate');
       // print(_breathingRate);
 
@@ -669,7 +746,7 @@ class PPG {
     return _breathingRate;
   }
 
-  /// Returns the difference between [valuesFiltered] and [valuesMeanEnvelope].
+  /// Returns the difference between [valuesFiltered] and [valuesLowerEnvelope].
   ///
   /// This array is only defined in the region covered by both the top and bottom envelopes,
   /// which is the region covered by both the peaks and valleys.
@@ -678,26 +755,9 @@ class PPG {
       var newIndex = _valuesProcessed.length;
       // add the next entry
       _valuesProcessed.add(valuesFiltered[newIndex + firstIndexEnvelopes] -
-          valuesMeanEnvelope[newIndex]);
+          valuesLowerEnvelope[newIndex]);
     }
     return _valuesProcessed;
-  }
-
-  /// Returns the difference between the upper and lower envelopes of [valuesFiltered].
-  ///
-  /// This array is only defined in the region covered by both the top and bottom envelopes,
-  /// which is the region covered by both the peaks and valleys.
-  Array get valuesDeltaEnvelopes {
-    while (_valuesDeltaEnvelopes.length < lengthEnvelopes) {
-      // lets only grab the times we don't yet have
-      var times = Array(millisEnvelopes.sublist(_valuesDeltaEnvelopes.length));
-      var valuesUpper = interpolate(interpolationPeaks, times);
-      var valuesLower = interpolate(interpolationValleys, times);
-      for (var i = 0; i < valuesUpper.length; i++) {
-        _valuesDeltaEnvelopes.add((valuesUpper[i] - valuesLower[i]));
-      }
-    }
-    return _valuesDeltaEnvelopes;
   }
 
   double get amplitudeDC {
