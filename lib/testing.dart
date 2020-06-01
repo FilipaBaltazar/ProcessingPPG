@@ -208,9 +208,9 @@ class PPG {
 
   final int filterOrder = 50;
 
-  PPG(this.samplingRate);
+  PPG({this.samplingRate = 30});
 
-  PPG.fill(this.dates, this.valuesRaw) {
+  PPG.fill(this.dates, this.valuesRaw, {this.samplingRate = 30}) {
     for (var i = 0; i < dates.length; i++) {
       millis.add(dates[i].difference(start).inMilliseconds.toDouble());
     }
