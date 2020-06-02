@@ -173,6 +173,7 @@ class PPG {
   final Array _valuesMeanEnvelope = Array.empty();
   final Array _valuesLowerEnvelope = Array.empty();
   final Array _valuesDeltaEnvelopes = Array.empty();
+  final Array _valuesDeltaFiltered = Array.empty();
   final Map _peaksMean = {
     'indices': <int>[],
     'times': Array.empty(),
@@ -201,6 +202,10 @@ class PPG {
   /// High frequency cut-off of the band-pass filter applied to
   /// [valuesInterp] before obtaining [valuesFiltered].
   double frequencyHigh = 5;
+
+  /// High frequency cut-off of the low-pass filter applied to
+  /// [valuesDeltaEnvelopes] before obtaining [valuesDeltaFiltered].
+  double frequencyCutOff = 0.5;
 
   /// Low frequency cut-off of the band-pass filter applied to
   /// [valuesInterp] before obtaining [valuesFiltered].
@@ -460,6 +465,7 @@ class PPG {
     _valuesMeanEnvelope.clear();
     _valuesProcessed.clear();
     _valuesDeltaEnvelopes.clear();
+    _valuesDeltaFiltered.clear();
 
     _peaksMean['indices'].clear();
     _peaksMean['times'].clear();
@@ -702,15 +708,41 @@ class PPG {
     return _valuesDeltaEnvelopes;
   }
 
+  Array get valuesDeltaFiltered {
+    while (_valuesDeltaFiltered.length < valuesDeltaEnvelopes.length) {
+      // I should probably save these variables
+      var frequencyNyquist = 0.5 * samplingRate;
+      var lowPassWindow = Array([frequencyCutOff]);
+      var normalLowPassWindow = lowPassWindow / Array([frequencyNyquist]);
+      var filterCoeffs =
+          firwin(filterOrder, normalLowPassWindow, pass_zero: true);
+
+      // get the end bit of valuesDeltaEnvelopes, plus a tail with the size of the filter order
+      var valuesNew = valuesDeltaEnvelopes.getRangeArray(
+          max(0, _valuesDeltaFiltered.length - filterOrder - 1),
+          valuesDeltaEnvelopes.length);
+      // filter what we took from valuesDeltaEnvelopes
+      valuesNew = lfilter(filterCoeffs, Array([1.0]), valuesNew);
+      // the number of new samples to add to the filtered signal
+      var numNewSamples = valuesDeltaEnvelopes.length - _valuesDeltaFiltered.length;
+      for (var i = valuesNew.length - numNewSamples;
+          i < valuesNew.length;
+          i++) {
+        _valuesDeltaFiltered.add(valuesNew[i]);
+      }
+    }
+    return _valuesDeltaFiltered;
+  }
+
   Map get peaksDelta {
     while (_peaksDelta['lastIndex'] < lastIndexEnvelopes) {
       // only check parts you haven't checked yet.
       // we have to check starting from the index befoare the last,
       // because if not we can't tell if the last index was a peak
       // we can't check before the filterOrder because the signal is broken before that
-      int firstPos = max(0, _peaksDelta['lastIndex'] - 1 - firstIndexEnvelopes);
+      int firstPos = max(filterOrder, _peaksDelta['lastIndex'] - 1 - firstIndexEnvelopes);
       var aux = findPeaks(
-          valuesDeltaEnvelopes.getRangeArray(firstPos, lengthEnvelopes));
+          valuesDeltaFiltered.getRangeArray(firstPos, lengthEnvelopes));
       for (var i = 0; i < aux[0].length; i++) {
         var newIndex = aux[0][i].round() + firstPos + firstIndexEnvelopes;
         _peaksDelta['indices'].add(newIndex);
