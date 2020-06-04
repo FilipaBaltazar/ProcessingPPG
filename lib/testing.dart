@@ -173,7 +173,7 @@ class PPG {
   final Array _valuesMeanEnvelope = Array.empty();
   final Array _valuesLowerEnvelope = Array.empty();
   final Array _valuesDeltaEnvelopes = Array.empty();
-  final Array _valuesDeltaFiltered = Array.empty();
+  final Array _valuesMeanFiltered = Array.empty();
   final Map _peaksMean = {
     'indices': <int>[],
     'times': Array.empty(),
@@ -465,7 +465,7 @@ class PPG {
     _valuesMeanEnvelope.clear();
     _valuesProcessed.clear();
     _valuesDeltaEnvelopes.clear();
-    _valuesDeltaFiltered.clear();
+    _valuesMeanFiltered.clear();
 
     _peaksMean['indices'].clear();
     _peaksMean['times'].clear();
@@ -671,25 +671,25 @@ class PPG {
     return _valuesLowerEnvelope;
   }
 
-  Map get peaksMean {
-    while (_peaksMean['lastIndex'] < lastIndexEnvelopes) {
-      // only check parts you haven't checked yet.
-      // we have to check starting from the index befoare the last,
-      // because if not we can't tell if the last index was a peak
-      // we can't check before the filterOrder because the signal is broken before that
-      int firstPos = max(0, _peaksMean['lastIndex'] - 1 - firstIndexEnvelopes);
-      var aux = findPeaks(
-          valuesMeanEnvelope.getRangeArray(firstPos, lengthEnvelopes));
-      for (var i = 0; i < aux[0].length; i++) {
-        var newIndex = aux[0][i].round() + firstPos + firstIndexEnvelopes;
-        _peaksMean['indices'].add(newIndex);
-        _peaksMean['times'].add(millisInterp[newIndex]);
-        _peaksMean['values'].add(aux[1][i]);
-      }
-      _peaksMean['lastIndex'] = lastIndexEnvelopes;
-    }
-    return _peaksMean;
-  }
+  // Map get peaksMean {
+  //   while (_peaksMean['lastIndex'] < lastIndexEnvelopes) {
+  //     // only check parts you haven't checked yet.
+  //     // we have to check starting from the index befoare the last,
+  //     // because if not we can't tell if the last index was a peak
+  //     // we can't check before the filterOrder because the signal is broken before that
+  //     int firstPos = max(0, _peaksMean['lastIndex'] - 1 - firstIndexEnvelopes);
+  //     var aux = findPeaks(
+  //         valuesMeanEnvelope.getRangeArray(firstPos, lengthEnvelopes));
+  //     for (var i = 0; i < aux[0].length; i++) {
+  //       var newIndex = aux[0][i].round() + firstPos + firstIndexEnvelopes;
+  //       _peaksMean['indices'].add(newIndex);
+  //       _peaksMean['times'].add(millisInterp[newIndex]);
+  //       _peaksMean['values'].add(aux[1][i]);
+  //     }
+  //     _peaksMean['lastIndex'] = lastIndexEnvelopes;
+  //   }
+  //   return _peaksMean;
+  // }
 
   /// Returns the difference between the upper and lower envelopes of [valuesFiltered].
   ///
@@ -708,8 +708,8 @@ class PPG {
     return _valuesDeltaEnvelopes;
   }
 
-  Array get valuesDeltaFiltered {
-    while (_valuesDeltaFiltered.length < valuesDeltaEnvelopes.length) {
+  Array get valuesMeanFiltered {
+    while (_valuesMeanFiltered.length < valuesMeanEnvelope.length) {
       // I should probably save these variables
       var frequencyNyquist = 0.5 * samplingRate;
       var lowPassWindow = Array([frequencyCutOff]);
@@ -717,49 +717,49 @@ class PPG {
       var filterCoeffs =
           firwin(filterOrder, normalLowPassWindow, pass_zero: true);
 
-      // get the end bit of valuesDeltaEnvelopes, plus a tail with the size of the filter order
-      var valuesNew = valuesDeltaEnvelopes.getRangeArray(
-          max(0, _valuesDeltaFiltered.length - filterOrder - 1),
-          valuesDeltaEnvelopes.length);
-      // filter what we took from valuesDeltaEnvelopes
+      // get the end bit of valuesMeanEnvelopes, plus a tail with the size of the filter order
+      var valuesNew = valuesMeanEnvelope.getRangeArray(
+          max(0, _valuesMeanFiltered.length - filterOrder - 1),
+          valuesMeanEnvelope.length);
+      // filter what we took from valuesMeanEnvelopes
       valuesNew = lfilter(filterCoeffs, Array([1.0]), valuesNew);
       // the number of new samples to add to the filtered signal
-      var numNewSamples = valuesDeltaEnvelopes.length - _valuesDeltaFiltered.length;
+      var numNewSamples = valuesMeanEnvelope.length - _valuesMeanFiltered.length;
       for (var i = valuesNew.length - numNewSamples;
           i < valuesNew.length;
           i++) {
-        _valuesDeltaFiltered.add(valuesNew[i]);
+        _valuesMeanFiltered.add(valuesNew[i]);
       }
     }
-    return _valuesDeltaFiltered;
+    return _valuesMeanFiltered;
   }
 
-  Map get peaksDelta {
-    while (_peaksDelta['lastIndex'] < lastIndexEnvelopes) {
+  Map get peaksMean {
+    while (_peaksMean['lastIndex'] < lastIndexEnvelopes) {
       // only check parts you haven't checked yet.
       // we have to check starting from the index befoare the last,
       // because if not we can't tell if the last index was a peak
       // we can't check before the filterOrder because the signal is broken before that
-      int firstPos = max(filterOrder, _peaksDelta['lastIndex'] - 1 - firstIndexEnvelopes);
+      int firstPos = max(filterOrder, _peaksMean['lastIndex'] - 1 - firstIndexEnvelopes);
       var aux = findPeaks(
-          valuesDeltaFiltered.getRangeArray(firstPos, lengthEnvelopes));
+          valuesMeanFiltered.getRangeArray(firstPos, lengthEnvelopes));
       for (var i = 0; i < aux[0].length; i++) {
         var newIndex = aux[0][i].round() + firstPos + firstIndexEnvelopes;
-        _peaksDelta['indices'].add(newIndex);
-        _peaksDelta['times'].add(millisInterp[newIndex]);
-        _peaksDelta['values'].add(aux[1][i]);
+        _peaksMean['indices'].add(newIndex);
+        _peaksMean['times'].add(millisInterp[newIndex]);
+        _peaksMean['values'].add(aux[1][i]);
       }
-      _peaksDelta['lastIndex'] = lastIndexEnvelopes;
+      _peaksMean['lastIndex'] = lastIndexEnvelopes;
     }
-    return _peaksDelta;
+    return _peaksMean;
   }
 
-  /// Returns the breathing rate calculated from [valuesDeltaEnvelopes].
+  /// Returns the breathing rate calculated from [valuesMeanEnvelope].
   double get breathingRate {
-    if (peaksDelta['values'].length > 1) {
-      var timeSpan = peaksDelta['times'].last - peaksDelta['times'].first;
+    if (peaksMean['values'].length > 1) {
+      var timeSpan = peaksMean['times'].last - peaksMean['times'].first;
       _breathingRate =
-          ((peaksDelta['times'].length - 1) / (timeSpan / 1000)) * 60;
+          ((peaksMean['times'].length - 1) / (timeSpan / 1000)) * 60;
       // print('Peak count breathing rate');
       // print(_breathingRate);
 
