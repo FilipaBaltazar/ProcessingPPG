@@ -360,7 +360,7 @@ class PPG {
   }
 
   double get threshold {
-    return (statsFiltered['stdDev'] * 10 / 6);
+    return (statsFiltered['stdDev'] * 10 / 9);
   }
 
   /// Returns the first difference of [valuesFiltered].
