@@ -48,7 +48,7 @@ void main(List<String> arguments) {
   var last = DateTime.now();
   var start= last;
 
-  PPG ppg = PPG(66);
+  PPG ppg = PPG(samplingRate: 30);
 
   // i = 60 +55
 
@@ -56,14 +56,18 @@ void main(List<String> arguments) {
     last = start.add(Duration(milliseconds:(times.elementAt(i)*1000).round()));
   
     ppg.add(last, pipa_heart.elementAt(i));  
-    print(ppg.pulseRate);
+    print(ppg.breathingRate);
+
+    print(ppg.threshold);
+  
 
     // print(ppg.valuesProcessed.length);
 
     // print(last.difference(start).inMilliseconds);  
   }
 
-  ppg.breathingRate;
+  print(ppg.breathingRate);
+  print(ppg.statsFiltered['stdDev']);
 
   //print(findPeaks(Array([1,2,3]))[0]);
 

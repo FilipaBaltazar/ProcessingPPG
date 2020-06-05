@@ -360,7 +360,7 @@ class PPG {
   }
 
   double get threshold {
-    return (statsFiltered['stdDev'] * 10 / 9);
+    return ((statsFiltered['stdDev'] * 10 / 9) * 10).floor() / 10;
   }
 
   /// Returns the first difference of [valuesFiltered].
@@ -470,6 +470,7 @@ class PPG {
     _peaksMean['indices'].clear();
     _peaksMean['times'].clear();
     _peaksMean['values'].clear();
+    _peaksMean['lastIndex'] = -1;
   }
 
   /// Updates [peaks] and [valleys].
@@ -724,7 +725,8 @@ class PPG {
       // filter what we took from valuesMeanEnvelopes
       valuesNew = lfilter(filterCoeffs, Array([1.0]), valuesNew);
       // the number of new samples to add to the filtered signal
-      var numNewSamples = valuesMeanEnvelope.length - _valuesMeanFiltered.length;
+      var numNewSamples =
+          valuesMeanEnvelope.length - _valuesMeanFiltered.length;
       for (var i = valuesNew.length - numNewSamples;
           i < valuesNew.length;
           i++) {
@@ -740,7 +742,8 @@ class PPG {
       // we have to check starting from the index befoare the last,
       // because if not we can't tell if the last index was a peak
       // we can't check before the filterOrder because the signal is broken before that
-      int firstPos = max(filterOrder, _peaksMean['lastIndex'] - 1 - firstIndexEnvelopes);
+      int firstPos =
+          max(filterOrder, _peaksMean['lastIndex'] - 1 - firstIndexEnvelopes);
       var aux = findPeaks(
           valuesMeanFiltered.getRangeArray(firstPos, lengthEnvelopes));
       for (var i = 0; i < aux[0].length; i++) {
